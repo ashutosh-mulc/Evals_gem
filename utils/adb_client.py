@@ -298,10 +298,10 @@ class AdbClient:
         self.shell(device_id, f"screencap {remote_path}")
         logger.debug("Screenshot saved to %s on %s", remote_path, device_id)
 
-    def pull(self, device_id: str, remote_path: str, local_path: str) -> None:
-        """Pull a file from the device to the local machine."""
+    def pull(self, device_id: str, remote_path: str, local_path: str, check: bool = True) -> None:
+        """Pull a file (or "dir/." for a folder's contents) from the device to the local machine."""
         args = self._device_args(device_id, ["pull", remote_path, local_path])
-        self._run(args, check=True)
+        self._run(args, check=check)
         logger.debug("Pulled %s -> %s from %s", remote_path, local_path, device_id)
 
     def push(self, device_id: str, local_path: str, remote_path: str) -> None:

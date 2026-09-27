@@ -2,7 +2,7 @@ from agent_testers.device_managers.device_manager import DeviceManagerTemplate
 from agent_testers.device_managers.mixins.app_tasks import AppTasksMixin
 from agent_testers.device_managers.mixins.state_collect import StateCollectMixin
 from utils.adb_client import AdbClient
-import subprocess, os, shutil, time, signal
+import os, shutil, subprocess, time
 
 class DeviceManager(AppTasksMixin, StateCollectMixin, DeviceManagerTemplate):
 
@@ -92,67 +92,27 @@ class DeviceManager(AppTasksMixin, StateCollectMixin, DeviceManagerTemplate):
         subprocess.run(command, shell=True)
         print(f"Terminated Gemini!")
     
-    def logger(self):
+    def start_logging(self) -> None:
         assert self._adb.is_device_online(self.gemini_device), "Devices NOT online!"
         assert os.path.isdir(self.log_folder), f"log folder {self.log_folder} DOES NOT EXIST!"
+        self._start_logcat({self.gemini_device: "s25_gemini_live_log.txt"}, timeout_s=180)
+        self._clear_s25_image_folder()
+
+    def stop_logging(self) -> dict:
+        assert self._adb.is_device_online(self.gemini_device), "Devices NOT online!"
         log_files = {}
-        if len(self.log_procs) > 0:
-            print("----Stopped & Dumped Logging----")
-            # Log image query file
-            self.__pull_s25_query_image()
-            if len(os.listdir(self.log_folder)) > 0:
-                for file_name in os.listdir(self.log_folder):
-                    if "screen.png" in file_name:
-                        shutil.move(os.path.join(self.log_folder, file_name), os.path.join(self.log_folder, "device_view_image.png"))
-                        log_files["device_view_image_path"] = os.path.join(self.log_folder, "device_view_image.png")
-            
-            # Kill log dump processes
-            while len(self.log_procs) > 0:
-                log_proc = self.log_procs.pop()
+        self._pull_s25_query_image()
+        for file_name in os.listdir(self.log_folder):
+            if "screen.png" in file_name:
+                shutil.move(os.path.join(self.log_folder, file_name), os.path.join(self.log_folder, "device_view_image.png"))
+                log_files["device_view_image_path"] = os.path.join(self.log_folder, "device_view_image.png")
+        self._stop_logcat()
+        return log_files
 
-                os.killpg(os.getpgid(log_proc.pid), signal.SIGTERM)
-                try:
-                    log_proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    os.killpg(os.getpgid(log_proc.pid), signal.SIGKILL)
-                    log_proc.wait()
-        
-        else:
-            print("----Started Logging----")
-            #Start log dump processes
-            for device_id in [self.gemini_device]:
-                subprocess.run(["adb", "-s", device_id, "logcat", "-c"], check=True)
-                log_file_name = "s25_gemini_live_log.txt"
-                log_proc = subprocess.Popen(
-                    ["timeout", "--kill-after=5", "180", "adb", "-s", device_id, "logcat",],
-                    stdout=open(os.path.join(self.log_folder, log_file_name), "w"),
-                    stderr=subprocess.STDOUT,
-                    preexec_fn = os.setsid
-                )
-                self.log_procs.append(log_proc)
+    def _pull_s25_query_image(self, remote_path="/sdcard/Pictures/screen.png"):
+        self._adb.screencap(self.gemini_device, remote_path)
+        self._adb.pull(self.gemini_device, remote_path, self.log_folder, check=False)
+        self._clear_s25_image_folder(remote_path)
 
-            self.__clear_s25_image_folder()
-    
-    def __pull_s25_query_image(self, remote_path="/sdcard/Pictures/screen.png"):
-        command = f"adb -s {self.gemini_device} shell screencap {remote_path}" # click image
-        subprocess.run(command, shell=True)
-        print(command)
-
-        command = (
-            f"adb -s {self.gemini_device} pull"
-            f' {remote_path}'
-            f" {self.log_folder}"
-        )
-        subprocess.run(command, shell=True)
-        print(command)
-
-        self.__clear_s25_image_folder(remote_path )
-    
-    def __clear_s25_image_folder(self, remote_path="/sdcard/Pictures/screen.png"):
-        command = (
-            f"adb -s {self.gemini_device} shell rm"
-            f' {remote_path}'
-        )
-        subprocess.run(command, shell=True)
-        print(command)
-
+    def _clear_s25_image_folder(self, remote_path="/sdcard/Pictures/screen.png"):
+        self._adb.delete_file(self.gemini_device, remote_path)

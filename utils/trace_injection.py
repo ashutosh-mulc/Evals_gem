@@ -225,12 +225,13 @@ def _patch_agent_tester_side(config: dict) -> None:
             },
         )
 
-    if hasattr(DeviceManager, "logger"):
-        orig = DeviceManager.logger
-        DeviceManager.logger = _make_wrapper(
-            orig, "agent_tester", "dump_logs",
-            extract_outputs=lambda result, *a, **kw: result if isinstance(result, dict) else {"raw": str(result)[:200]},
-        )
+    for method_name in ("start_logging", "stop_logging"):
+        if hasattr(DeviceManager, method_name):
+            orig = getattr(DeviceManager, method_name)
+            setattr(DeviceManager, method_name, _make_wrapper(
+                orig, "agent_tester", method_name,
+                extract_outputs=lambda result, *a, **kw: result if isinstance(result, dict) else {"raw": str(result)[:200]},
+            ))
 
     # --- ARAPManager methods ---
 

@@ -305,7 +305,7 @@ class AgentTester:
 
         time.sleep(2)
         if self.dump_logs:
-            self.device_manager.logger()
+            self.device_manager.start_logging()
 
        
         ## FOR APP EVAL TASK:
@@ -393,7 +393,7 @@ class AgentTester:
 
 
         if self.dump_logs:
-            log_analysis = self.device_manager.logger()
+            log_analysis = self.device_manager.stop_logging()
             if log_analysis:
                 question_info["metadata"].setdefault("app_state", {})["log_analysis"] = log_analysis
             

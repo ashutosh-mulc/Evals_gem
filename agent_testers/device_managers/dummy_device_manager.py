@@ -13,6 +13,3 @@ class DeviceManager(DeviceManagerTemplate):
     
     def terminate(self):
         pass
-    
-    def logger(self):
-        pass

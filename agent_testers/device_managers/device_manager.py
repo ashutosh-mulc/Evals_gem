@@ -12,9 +12,11 @@ unconditionally, for managers that don't include the corresponding mixin.
 """
 
 from abc import ABC, abstractmethod
+import os
+import re
+import signal
 import subprocess
 import time
-import re
 import logging
 
 logger = logging.getLogger(__name__)
@@ -48,9 +50,33 @@ class DeviceManagerTemplate(ABC):
     def terminate(self):
         pass
 
-    @abstractmethod
-    def logger(self) -> dict:
-        pass
+    def start_logging(self) -> None:
+        """Start per-query device log capture (before invoke). No-op by default."""
+
+    def stop_logging(self) -> dict:
+        """Stop capture; return flags/paths for metadata["app_state"]["log_analysis"]."""
+        return {}
+
+    def _start_logcat(self, files: dict, timeout_s: int) -> None:
+        """Clear logcat and stream it into self.log_folder/<file> for each {device_id: file}."""
+        for device_id, file_name in files.items():
+            subprocess.run(["adb", "-s", device_id, "logcat", "-c"], check=True)
+            with open(os.path.join(self.log_folder, file_name), "w") as out:
+                self.log_procs.append(subprocess.Popen(
+                    ["timeout", "--kill-after=5", str(timeout_s), "adb", "-s", device_id, "logcat"],
+                    stdout=out, stderr=subprocess.STDOUT, preexec_fn=os.setsid,
+                ))
+
+    def _stop_logcat(self) -> None:
+        """Stop the _start_logcat processes: SIGTERM, then SIGKILL after 5s."""
+        while self.log_procs:
+            proc = self.log_procs.pop()
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                proc.wait()
 
     # ── Low-level ADB helpers (shared by all managers) ─────────────
 
