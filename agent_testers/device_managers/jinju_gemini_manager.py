@@ -79,7 +79,7 @@ class DeviceManager(
         # Reset volume to 100% on Jinju and companion device (all streams, percentage of each stream's max)
         self.reset_media_volume(self._get_jinju_device(), 100)
         self.reset_media_volume(self._get_companion_device(), 100)
-        report["set"].append("Volume reset to 80%")
+        report["set"].append("Volume reset to 100%")
      
         ## Turn off DND/zen mode
         self._adb.set_dnd_mode(self.companion_device, False)
