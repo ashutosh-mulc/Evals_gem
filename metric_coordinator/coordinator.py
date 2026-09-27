@@ -5,11 +5,18 @@ from copy import deepcopy
 from tqdm import tqdm
 import logging
 
-from utils.file_utils import *
+from utils.file_utils import JSONFileManager, JSONLFileManager
 from utils.message_transport import MessagePipes
-from common.message import *
+from common.message import Message
 from common.logging_config import setup_logging
 from metric_coordinator.db_manager import DBManager
+
+CLIENTS = ("judge_worker", "agent_tester")  # FIFO open order matters: opens block until the peer connects
+
+
+def _response(status: str, payload: str = "") -> Message:
+    return Message(eval_id="", msg_type="RESPONSE", status=status, payload=payload, sender="coordinator")
+
 
 class MetricCoordinator:
     def __init__(self, config_path):
@@ -27,154 +34,72 @@ class MetricCoordinator:
 
         setup_logging(config["logger"]["logger_level"], os.path.join(config["paths"]["root_folder"], "coordinator.log"))
 
-        #setup message_service
+        # One FIFO pair per client; each client's server thread talks to main() through two queues:
+        # requests (client → main) and responses (main → client).
         self.message_services = {
-                            "judge_worker": MessagePipes(read_path = "/tmp/judge_worker_to_coordinator",
-                                    write_path = "/tmp/coordinator_to_judge_worker",
-                                    write_first = False),
-                            "agent_tester": MessagePipes(read_path = "/tmp/agent_tester_to_coordinator",
-                                    write_path = "/tmp/coordinator_to_agent_tester",
-                                    write_first = False)
-                            }
+            name: MessagePipes(read_path=f"/tmp/{name}_to_coordinator",
+                               write_path=f"/tmp/coordinator_to_{name}",
+                               write_first=False)
+            for name in CLIENTS
+        }
+        self.requests = {name: queue.Queue() for name in CLIENTS}
+        self.responses = {name: queue.Queue() for name in CLIENTS}
 
-        self.message_queues = {
-                            "tester_request": queue.Queue(),
-                            "tester_response": queue.Queue(),
-                            "judge_request": queue.Queue(),
-                            "judge_response": queue.Queue()
-                            }  
-    
-    def host_agent_tester_server(self):
-        wait_response = Message(eval_id = '',
-                                msg_type = "RESPONSE",
-                                status = "WAIT",
-                                payload = "",
-                                sender = "coordinator",
-                                )
-        
-        stop_service = False
+    def _serve(self, name: str):
+        """Answer every request from one client: queue it for main(), reply with the next response or WAIT."""
+        pipes = self.message_services[name]
+        wait_response = _response("WAIT")
 
-        while not stop_service:
-            try:            
-                encoded_msg = self.message_services["agent_tester"].recv()
+        while True:
+            try:
+                msg = json.loads(pipes.recv().decode())
             except BrokenPipeError:
-                logging.error("ERROR: agent_tester client died! FIX IT! WAITING!")
-                self.message_services["agent_tester"].reinit_fd(write_first = True)
+                logging.error(f"ERROR: {name} client died! FIX IT! WAITING!")
+                pipes.reinit_fd(write_first=True)
                 continue
 
-            msg = json.loads(encoded_msg.decode())
-
-            if msg["msg_type"] == "REQUEST":
-                logging.info("Received msg from agent_tester")
-
-                current_process_status = msg["status"]
-                match(current_process_status):
-                    case "WORK":
-                        self.message_queues["tester_request"].put(deepcopy(msg)) #producer
-                        if self.message_queues["tester_request"].qsize() > 1:
-                            raise NotImplementedError
-                    case "READY":
-                        self.message_queues["tester_request"].put(deepcopy(msg)) #producer
-                        if self.message_queues["tester_request"].qsize() > 1:
-                            raise NotImplementedError
-                    case _:
-                        pass
-                
-                response = wait_response
-                try: 
-                    response = self.message_queues["tester_response"].get_nowait() #consumer
-                    logging.info("----ASSIGNING TASK TO TESTER----")
-                except queue.Empty:
-                    logging.info("----ASKING TESTER TO WAIT----")
-                
-                response.msg_id = msg["msg_id"]
-                if response.status == "STOP":
-                    logging.info("----STOPPING AGENT TESTER----")
-                    stop_service = True
-                
-                try:
-                    self.message_services["agent_tester"].send(
-                        payload = json.dumps(response.get_json()).encode()
-                    )
-                except BrokenPipeError:
-                    logging.error("ERROR: agent_tester client died! FIX IT!")
-                    self.message_services["agent_tester"].reinit_fd(write_first = True)
-                # print("Replied to agent_tester", json.dumps(response.get_json()))
-            else:
+            if msg["msg_type"] != "REQUEST":
                 raise NotImplementedError
-    
-    def host_judge_worker_server(self):
-        wait_response = Message(eval_id = '',
-                                msg_type = "RESPONSE",
-                                status = "WAIT",
-                                payload = "",
-                                sender = "coordinator",
-                                )
-        
-        stop_service = False
+            logging.info(f"Received msg from {name}")
 
-        while not stop_service: 
-            try:             
-                # pass
-                encoded_msg = self.message_services["judge_worker"].recv()
+            if msg["status"] in ("WORK", "READY"):
+                self.requests[name].put(deepcopy(msg))
+                if self.requests[name].qsize() > 1:
+                    raise NotImplementedError
+
+            try:
+                response = self.responses[name].get_nowait()
+                logging.info(f"----ASSIGNING TASK TO {name}----")
+            except queue.Empty:
+                response = wait_response
+                logging.info(f"----ASKING {name} TO WAIT----")
+
+            response.msg_id = msg["msg_id"]
+            try:
+                pipes.send(payload=json.dumps(response.get_json()).encode())
             except BrokenPipeError:
-                logging.error("ERROR: judge_worker client died! FIX IT! WAITING!")
-                self.message_services["judge_worker"].reinit_fd(write_first = True)
-                continue
-            
+                logging.error(f"ERROR: {name} client died! FIX IT!")
+                pipes.reinit_fd(write_first=True)
 
-            msg = json.loads(encoded_msg.decode())
+            if response.status == "STOP":
+                logging.info(f"----STOPPING {name}----")
+                return
 
-            if msg["msg_type"] == "REQUEST":
-                logging.info("Received msg from judge_worker")
+    def _assign_next_judge_task(self, work_msg: Message) -> dict:
+        """Hand the lowest pending eval_id to the judge; return it as the current judge task."""
+        next_task_id = min(self.judge_datadict)
+        judge_qinfo = self.judge_datadict.pop(next_task_id)
+        self.db_manager.update_task(next_task_id, "ASSIGNED", judge_qinfo)
+        work_msg.payload = judge_qinfo
+        self.responses["judge_worker"].put(deepcopy(work_msg))
+        return json.loads(judge_qinfo)
 
-                current_process_status = msg["status"]
-                match(current_process_status):
-                    case "WORK":
-                        self.message_queues["judge_request"].put(deepcopy(msg)) #producer
-                        if self.message_queues["judge_request"].qsize() > 1:
-                            raise NotImplementedError
-                    case "READY":
-                        self.message_queues["judge_request"].put(deepcopy(msg)) #producer
-                        if self.message_queues["judge_request"].qsize() > 1:
-                            raise NotImplementedError
-                    case _:
-                        pass
-                
-                response = wait_response
-                try: 
-                    response = self.message_queues["judge_response"].get_nowait() #consumer
-                    logging.info("----ASSIGNING TASK TO JUDGE----")
-                except queue.Empty:
-                    logging.info("----ASKING JUDGE TO WAIT----")
-                
-                response.msg_id = msg["msg_id"]
-                if response.status == "STOP":
-                    logging.info("----STOPPING JUDGE WORKER----")
-                    stop_service = True
-                
-                try:
-                    self.message_services["judge_worker"].send(
-                        payload = json.dumps(response.get_json()).encode()
-                    )
-                except BrokenPipeError:
-                    logging.error("ERROR: judge_worker client died! FIX IT! WAITING!")
-                    self.message_services["judge_worker"].reinit_fd(write_first = True)
-            else:
-                raise NotImplementedError
-
-    
     def main(self):
-        agent_tester_server_thread = threading.Thread(target = self.host_agent_tester_server, daemon = True)
-        agent_tester_server_thread.start()
-        judge_worker_server_thread = threading.Thread(target = self.host_judge_worker_server, daemon = True)
-        judge_worker_server_thread.start()
+        server_threads = [threading.Thread(target=self._serve, args=(name,), daemon=True) for name in CLIENTS]
+        for t in server_threads:
+            t.start()
 
-        work_msg = Message(eval_id = '',
-                msg_type = "RESPONSE",
-                status = "WORK",
-                payload = json.dumps(self.question_dataset[self.start_idx]),
-                sender = "coordinator")
+        work_msg = _response("WORK")
 
         add_judge_task_when_available = False
         tc_excecuted = set(); tc_judged = set()
@@ -184,7 +109,7 @@ class MetricCoordinator:
         pbar = tqdm(total = dataset_size, desc = "Evaluating")
         while len(tc_excecuted) < dataset_size or len(tc_judged) < dataset_size:
             try:
-                tester_request = self.message_queues["tester_request"].get_nowait() #consumer
+                tester_request = self.requests["agent_tester"].get_nowait()
                 #TODO: semi-automate logic for waiting and re-evaluating tc can be added here
                 if tester_request["status"] == "WORK":
                     if current_tester_task and current_tester_task["eval_id"] != tester_request["eval_id"]: # verify the completed task otherwise reassign it
@@ -204,14 +129,14 @@ class MetricCoordinator:
                     q_info = self.question_dataset[self.qdata_idx]
                     current_tester_task = q_info
                     work_msg.payload = json.dumps(q_info)
-                    self.message_queues["tester_response"].put(deepcopy(work_msg))
+                    self.responses["agent_tester"].put(deepcopy(work_msg))
                     
                     self.qdata_idx += 1                
             except queue.Empty:
                 pass
             
             try:
-                judge_request = self.message_queues["judge_request"].get_nowait() #consumer
+                judge_request = self.requests["judge_worker"].get_nowait()
                 #TODO: semi-automated live update of judge request can be added here
                 if judge_request["status"] == "WORK":
                     if current_judge_task and current_judge_task["eval_id"] == judge_request["eval_id"]: # verify the completed and only then pop it
@@ -229,15 +154,8 @@ class MetricCoordinator:
                     raise NotImplementedError
 
                 if self.judge_datadict:
-                    logging.debug("Assigning task inside loop")
-                    next_task_id = min(list(self.judge_datadict.keys()))
+                    current_judge_task = self._assign_next_judge_task(work_msg)
                     add_judge_task_when_available = False
-
-                    judge_qinfo = self.judge_datadict.pop(next_task_id)
-                    current_judge_task = json.loads(judge_qinfo)
-                    self.db_manager.update_task(next_task_id, "ASSIGNED", judge_qinfo)
-                    work_msg.payload = judge_qinfo
-                    self.message_queues["judge_response"].put(deepcopy(work_msg))
                 else:
                     add_judge_task_when_available = True
 
@@ -245,25 +163,13 @@ class MetricCoordinator:
                 pass
             
             if self.judge_datadict and add_judge_task_when_available:
-                logging.debug("Assigning task outside loop")
-                next_task_id = min(list(self.judge_datadict.keys()))
+                current_judge_task = self._assign_next_judge_task(work_msg)
                 add_judge_task_when_available = False
 
-                judge_qinfo = self.judge_datadict.pop(next_task_id)
-                current_judge_task = json.loads(judge_qinfo)
-                self.db_manager.update_task(next_task_id, "ASSIGNED", judge_qinfo)
-                work_msg.payload = judge_qinfo
-                self.message_queues["judge_response"].put(deepcopy(work_msg))
-
-        stop_msg = Message(eval_id = '',
-                        msg_type = "RESPONSE",
-                        status = "STOP",
-                        payload = "",
-                        sender = "coordinator")
-        self.message_queues["tester_response"].put(deepcopy(stop_msg))
-        self.message_queues["judge_response"].put(deepcopy(stop_msg))
-        agent_tester_server_thread.join() 
-        judge_worker_server_thread.join() # if we forcefully kill the main process it should kill this thread otherwise wait until the thread closes gently
+        for name in CLIENTS:
+            self.responses[name].put(_response("STOP"))
+        for t in server_threads:
+            t.join()  # daemon threads: killing the main process still ends them
         
         pbar.close()
 
