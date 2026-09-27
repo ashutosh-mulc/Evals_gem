@@ -20,6 +20,7 @@ Process Architecture:
 """
 
 import os, subprocess, shutil, json, time, sys, glob
+from collections import defaultdict
 from copy import deepcopy
 import numpy as np
 from tqdm import tqdm
@@ -33,6 +34,10 @@ import automator
 
 DIR = os.getcwd()
 ENV = sys.prefix
+
+# A response scores "passed" at this rating or above; the automator retries
+# anything below it in the next round.
+PASS_RATING = 3
 
 class EvaluationAutomator:
     """
@@ -325,13 +330,13 @@ class EvaluationAutomator:
                 # to only the rounds that completed before the crash.
                 print(f"Round {round_num}: {len(missing_eval_ids)} eval_id(s) missing from previous round's report "
                       f"(crashed/timed out) — retrying: {missing_eval_ids}")
-            filtered_dataset = [line for line in dataset[last_itr_config["dataset_start_index"]: last_itr_config["dataset_end_index"] + 1] if (line["eval_id"] not in vqa_report_dict) or ((vqa_report_dict[line["eval_id"]]["rating"] is None) or (vqa_report_dict[line["eval_id"]]["rating"] < 3))] #only the bad responses (or missing/crashed ones) are kept in the new round
+            filtered_dataset = [line for line in dataset[last_itr_config["dataset_start_index"]: last_itr_config["dataset_end_index"] + 1] if (line["eval_id"] not in vqa_report_dict) or ((vqa_report_dict[line["eval_id"]]["rating"] is None) or (vqa_report_dict[line["eval_id"]]["rating"] < PASS_RATING))] #only the bad responses (or missing/crashed ones) are kept in the new round
 
             dataset_size = len(filtered_dataset)
             
             # If all queries passed, don't create the folder and return early
             if dataset_size == 0:
-                print(f"Round {round_num}: All queries passed (rating >= 3)! Stopping evaluation.")
+                print(f"Round {round_num}: All queries passed (rating >= {PASS_RATING})! Stopping evaluation.")
                 return None, 0
             
             # Only create folder if there's data to process
@@ -428,7 +433,7 @@ class EvaluationAutomator:
         with open(f"{eval_folder_path}/bad_responses.txt", 'w') as bad_response_file:
             bad_indices = []
             for i, data_info in enumerate(data):
-                if data_info["rating"] is None or str(data_info["rating"]).strip() in ['N/A', 'null', ''] or int(data_info["rating"]) < 3:
+                if data_info["rating"] is None or str(data_info["rating"]).strip() in ['N/A', 'null', ''] or int(data_info["rating"]) < PASS_RATING:
                     bad_response_file.write("%d, %s\n"%(i, data_info["eval_id"]))
                     bad_response_file.write("%s\n"%data_info["question"]); bad_response_file.write("%s\n"%data_info["gt_answer"])
                     bad_response_file.write("%s\n"%data_info["ai_response"]); bad_response_file.write("%s\n"%data_info["rating"])
@@ -530,21 +535,20 @@ class PostProcessAutomator:
             Tuple of (header, responses_dict) where responses_dict maps
             eval_id to list of responses sorted by rating (best first).
         """
-        responses = {}; header = {}
-        for eval_idx in range(len(report_files)):
-            eval_lines = open(report_files[eval_idx], 'r').read().split("\n")[:-1]; eval_lines = [json.loads(eval_lines[i]) for i in range(len(eval_lines))]
-            header = eval_lines[0]
-            for data_info in eval_lines[1:]:
-                responses[data_info['eval_id']] = responses.get(data_info['eval_id'], [])
+        responses = defaultdict(list)
+        header = {}
+        for eval_idx, report_file in enumerate(report_files):
+            header, eval_lines = JSONLFileManager.load_file(report_file)
+            for data_info in eval_lines:
                 if str(data_info["rating"]).strip() in ['N/A', 'None', '']:
                     data_info["rating"] = '0'
                 data_info["iteration"] = eval_idx + 1
                 responses[data_info['eval_id']].append(data_info)
-        
+
         for eval_id in responses:
-            responses[eval_id] = sorted(responses[eval_id], reverse= True, key = lambda x: int(x["rating"]))
-        return header, responses    
-        
+            responses[eval_id] = sorted(responses[eval_id], reverse=True, key=lambda x: int(x["rating"]))
+        return header, responses
+
     def analyze_response(self):
         """Merge per-round reports into consolidated vqa_report.jsonl.
 
@@ -558,13 +562,11 @@ class PostProcessAutomator:
             return
         header, responses = self.sort_responses(report_files)
 
-        header["fields"]["iteration"] = "Iteration of the evaluation round"       
-            
-        eval_json_file = open(os.path.join(self.root_folder_path, "vqa_report.jsonl"), 'w')
-        eval_json_file.write(json.dumps(header) + "\n")
-        eval_ids = list(responses.keys()); eval_ids.sort()
-        for eval_id in eval_ids:
-            eval_json_file.write(json.dumps(responses[eval_id]) + "\n")    
+        header["fields"]["iteration"] = "Iteration of the evaluation round"
+
+        eval_ids = sorted(responses.keys())
+        JSONLFileManager.dump_file(header, [responses[eid] for eid in eval_ids],
+                                    os.path.join(self.root_folder_path, "vqa_report.jsonl"))
         
     def render_report_func(self, out_dir):
         """Generate HTML visual reports.
@@ -614,7 +616,7 @@ class PostProcessAutomator:
 
             best_iteration = feasible_iteration = -1; best_rating = 0; response_time = None
             for q_round in eval_q_rounds:
-                if int(q_round["rating"]) > 2:
+                if int(q_round["rating"]) >= PASS_RATING:
                     if feasible_iteration == -1 or feasible_iteration > q_round["iteration"]:
                         feasible_iteration = q_round["iteration"]
                 else:
