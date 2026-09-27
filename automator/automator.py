@@ -512,6 +512,7 @@ class PostProcessAutomator:
         Args:
             config_path: Path to the evaluation config JSON.
         """
+        self.config_path = config_path
         self.data_config = JSONFileManager.load_file(config_path)
         self.root_folder_path = self.data_config["paths"]["root_folder"]
         self.n_eval = self.data_config["automator"]["num_evaluations"]
@@ -736,9 +737,9 @@ class PostProcessAutomator:
 
             file_paths = []
             if companion_pair == "jinju/gemini-live-s25":
-                automator.XR_Board_report_generator(eval_json_path, config_path, True)
+                automator.XR_Board_report_generator(eval_json_path, self.config_path, True)
                 file_paths.append(eval_json_path.rsplit('.',1)[0] + "_for_XRBoard.json")
-            automator.KPI_Test_report_generator(eval_json_path, config_path, True)
+            automator.KPI_Test_report_generator(eval_json_path, self.config_path, True)
 
             for new_name in ["_for_KPI_QA_TASK.json", "_for_KPI_Visual_QA_TASK.json", "_for_KPI_Hallucination_TASK.json"]:
                 file_paths.append(eval_json_path.rsplit('.',1)[0] + new_name)
