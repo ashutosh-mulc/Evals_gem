@@ -84,8 +84,7 @@ class TestRunJudgeReturnsPrompt:
         """run_judge should return (response, entropy_metrics, prompt) as a 3-tuple."""
         fake_resp = _fake_response_object(_judge_text(rating=5))
 
-        with patch.object(scorer.judge.chat.completions, "create", return_value=fake_resp), \
-             patch.object(scorer, "_ResponseScorer__judge_health", return_value=None):
+        with patch.object(scorer.judge.chat.completions, "create", return_value=fake_resp):
             result = scorer.run_judge(
                 eval_type="QA_TASK",
                 question="What is 2+2?",
@@ -107,8 +106,7 @@ class TestRunJudgeReturnsPrompt:
         fake_resp = _fake_response_object(_judge_text(rating=5))
         test_question = "What is the capital of France?"
 
-        with patch.object(scorer.judge.chat.completions, "create", return_value=fake_resp), \
-             patch.object(scorer, "_ResponseScorer__judge_health", return_value=None):
+        with patch.object(scorer.judge.chat.completions, "create", return_value=fake_resp):
             _, _, prompt = scorer.run_judge(
                 eval_type="QA_TASK",
                 question=test_question,
@@ -124,8 +122,7 @@ class TestRunJudgeReturnsPrompt:
         fake_resp = _fake_response_object(_judge_text(rating=5))
         test_gt = "42"
 
-        with patch.object(scorer.judge.chat.completions, "create", return_value=fake_resp), \
-             patch.object(scorer, "_ResponseScorer__judge_health", return_value=None):
+        with patch.object(scorer.judge.chat.completions, "create", return_value=fake_resp):
             _, _, prompt = scorer.run_judge(
                 eval_type="QA_TASK",
                 question="What is the answer to life?",
@@ -141,8 +138,7 @@ class TestRunJudgeReturnsPrompt:
         fake_resp = _fake_response_object(_judge_text(rating=5))
         test_ai_response = "The answer is 42"
 
-        with patch.object(scorer.judge.chat.completions, "create", return_value=fake_resp), \
-             patch.object(scorer, "_ResponseScorer__judge_health", return_value=None):
+        with patch.object(scorer.judge.chat.completions, "create", return_value=fake_resp):
             _, _, prompt = scorer.run_judge(
                 eval_type="QA_TASK",
                 question="What is the answer?",
@@ -192,7 +188,6 @@ class TestGetJudgeScorePromptSaving:
 
         with patch.object(scorer, "get_text_response", return_value=stt_response), \
              patch.object(scorer.judge.chat.completions, "create", return_value=fake_judge_resp), \
-             patch.object(scorer, "_ResponseScorer__judge_health", return_value=None), \
              patch("judge_worker.response_scorer.DeterministicJudge") as mock_dj_class:
             # Make deterministic judge return None (unsupported) so VLM path is used
             mock_dj_class.can_handle.return_value = False
@@ -228,7 +223,6 @@ class TestGetJudgeScorePromptSaving:
         stt_response = {"text": "", "start": 0, "end": 0}
 
         with patch.object(scorer, "get_text_response", return_value=stt_response), \
-             patch.object(scorer, "_ResponseScorer__judge_health", return_value=None), \
              patch("judge_worker.response_scorer.DeterministicJudge") as mock_dj_class:
             mock_dj_class.can_handle.return_value = False
 
@@ -298,7 +292,6 @@ class TestGetJudgeScorePromptSaving:
 
         with patch.object(scorer, "get_text_response", return_value=stt_response), \
              patch.object(scorer.judge.chat.completions, "create", return_value=fake_judge_resp), \
-             patch.object(scorer, "_ResponseScorer__judge_health", return_value=None), \
              patch("judge_worker.response_scorer.DeterministicJudge") as mock_dj_class:
             mock_dj_class.can_handle.return_value = False
 

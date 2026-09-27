@@ -22,8 +22,8 @@ class ResponseScorer:
             base_url=judge_url,
         )
 
-        hosted_models = self.__judge_health()
-
+        hosted_models = self.judge.models.list().data  # raises if the judge server is down
+        assert hosted_models, f"No hosted models at {judge_url}"
         self.model_id = hosted_models[0].id
         self.use_vllm_apis = judge_config["vllm_api"]
         self.eval_type_to_prompt = {
@@ -44,11 +44,6 @@ class ResponseScorer:
 
         self.metric_scorer = HallucinationScorer()
 
-
-    def __judge_health(self): # throws error if judge is not up
-        hosted_models = self.judge.models.list().data
-        assert len(hosted_models) >= 1, f"No hosted models at " + judge_url
-        return hosted_models
 
     def __rating_rectifier_health(self) -> bool:
         """Check if the rating rectifier server is up. Returns True if healthy, False otherwise.
@@ -386,8 +381,6 @@ class ResponseScorer:
 
         Returns the response_object on success, or a dummy error response on failure.
         """
-        self.__judge_health()
-
         # Debug: Print prompt and messages
         print(f"\n{'='*60}")
         print(f"=== JUDGE PROMPT (first 3000 chars) ===")
@@ -513,7 +506,7 @@ class ResponseScorer:
 
             # 6. Parse response
             response = response_object.choices[0].message.content
-            response.replace("<｜begin▁of▁sentence｜>", "")
+            response = response.replace("<｜begin▁of▁sentence｜>", "")
 
             analysis, rating = self.__get_rating_and_analysis(response)
             print(f"Rating: {rating}"); logging.debug(f"Rating: {rating}")
