@@ -119,31 +119,12 @@ class DeviceManagerTemplate(ABC):
         pass
 
     def reset_device_to_default_state(self) -> dict:
-        """Reset device to known default state before EVERY test case.
-        
-        Called once at the start of each test, before app-specific preconditions.
-        This ensures consistent baseline state for all evaluations.
-        
-        Returns:
-            dict with keys:
-                - set: list of successful resets
-                - failed: list of failed resets
+        """Reset the device to a known baseline before every APP_EVAL_TASK.
+
+        No-op here; managers that drive a companion device (Jinju) override it.
+        Returns {"set": [...], "failed": [...]}.
         """
-        report = {"set": [], "failed": []}
-        
-        # Reset screen to home
-        self.reset_companion_screen()
-        report["set"].append("Screen reset to home")
-        
-        # Reset volume to 80% (default starting point, all streams)
-    
-        self.reset_media_volume(self._get_companion_device(), 80)
-        report["set"].append("Volume reset to 80%")
-        
-        # Reset DND to off (default starting point) - handled by subclasses with _adb access
-        # Subclasses like DeviceManager should override this method to use self._adb.set_dnd_mode()
-        self._adb.set_dnd_mode(self.jinju_device, False)
-        return report
+        return {"set": [], "failed": []}
 
     # ── No-op stubs for mixin methods ──────────────────────────────
     # These are overridden by AppTasksMixin / StateCollectMixin / CalendarMixin
