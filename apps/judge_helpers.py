@@ -155,16 +155,19 @@ def _is_package_running(package: str, device: str = "") -> bool:
         return False
 
 
-def handle_launch(question: str, ai_response: str, metadata: dict) -> Tuple[int, str]:
-    """Evaluate app launch query: check if the app's package is running."""
+def _check_running(action: str, expect_running: bool, metadata: dict) -> Tuple[int, str]:
+    """Shared logic for handle_launch (expect_running=True) and handle_exit
+    (expect_running=False): resolve the app's package from question_type, check
+    via ADB whether its process is running, and rate against what's expected."""
     from apps import get_package_name
-    
+
     app = QuestionType.parse(metadata.get("question_type", "")).app_key
+    requirement = "must be running" if expect_running else "must NOT be running"
 
     # Get package name from registry (single source of truth)
     package = get_package_name(app)
     if not package:
-        return 2, f"App launch query for '{app}'. No package name found in APP_CONFIGS. Criteria: app process must be running. Cannot verify — unknown app. Rating: 2."
+        return 2, f"App {action} query for '{app}'. No package name found in APP_CONFIGS. Criteria: app process {requirement}. Cannot verify — unknown app. Rating: 2."
 
     device = (
         metadata.get("companion_device")
@@ -173,11 +176,22 @@ def handle_launch(question: str, ai_response: str, metadata: dict) -> Tuple[int,
     )
 
     is_running = _is_package_running(package, device)
-
     if is_running:
-        return 5, f"App launch query for '{app}'. Package: {package}. ADB ps -A check: process IS running on device {device or 'default'}. Criteria: app process must be running. Rating: 5."
+        state = "IS running" if expect_running else "IS still running"
     else:
-        return 1, f"App launch query for '{app}'. Package: {package}. ADB ps -A check: process is NOT running on device {device or 'default'}. Criteria: app process must be running. Rating: 1."
+        state = "is NOT running"
+
+    rating = 5 if is_running == expect_running else 1
+    return rating, (
+        f"App {action} query for '{app}'. Package: {package}. "
+        f"ADB ps -A check: process {state} on device {device or 'default'}. "
+        f"Criteria: app process {requirement}. Rating: {rating}."
+    )
+
+
+def handle_launch(question: str, ai_response: str, metadata: dict) -> Tuple[int, str]:
+    """Evaluate app launch query: check if the app's package is running."""
+    return _check_running("launch", True, metadata)
 
 
 def handle_exit(question: str, ai_response: str, metadata: dict) -> Tuple[int, str]:
@@ -186,27 +200,7 @@ def handle_exit(question: str, ai_response: str, metadata: dict) -> Tuple[int, s
     This is the inverse of handle_launch — a successful exit means the app
     process is no longer running.
     """
-    from apps import get_package_name
-
-    app = QuestionType.parse(metadata.get("question_type", "")).app_key
-
-    # Get package name from registry (single source of truth)
-    package = get_package_name(app)
-    if not package:
-        return 2, f"App exit query for '{app}'. No package name found in APP_CONFIGS. Criteria: app process must NOT be running. Cannot verify — unknown app. Rating: 2."
-
-    device = (
-        metadata.get("companion_device")
-        or metadata.get("s25_device_id")
-        or ""
-    )
-
-    is_running = _is_package_running(package, device)
-
-    if not is_running:
-        return 5, f"App exit query for '{app}'. Package: {package}. ADB ps -A check: process is NOT running on device {device or 'default'}. Criteria: app process must NOT be running. Rating: 5."
-    else:
-        return 1, f"App exit query for '{app}'. Package: {package}. ADB ps -A check: process IS still running on device {device or 'default'}. Criteria: app process must NOT be running. Rating: 1."
+    return _check_running("exit", False, metadata)
 
 
 # =============================================================================
