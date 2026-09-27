@@ -20,7 +20,6 @@ from __future__ import annotations
 from ..helpers import result, get_foreground_package_with_fallback, xrclaw_unavailable_result
 
 APP_KEYS = ("googlemaps",)
-ACCESSOR = "maps"
 
 
 def capture_pre(dm) -> dict:

@@ -27,7 +27,6 @@ from ..helpers import (
 )
 
 APP_KEYS = ("samsungreminder",)
-ACCESSOR = "reminders"
 PACKAGE_NAME = "com.samsung.android.app.reminder"
 
 

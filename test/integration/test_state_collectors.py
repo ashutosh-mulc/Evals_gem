@@ -15,7 +15,7 @@ app registry. Each test:
 import pytest
 
 from test.mocks.mock_xrclaw import MockXRClawDeviceManager
-from apps import STATE_COLLECTORS, supported_apps
+from apps import STATE_COLLECTORS
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -26,26 +26,6 @@ from apps import STATE_COLLECTORS, supported_apps
 def dm():
     """Fresh MockXRClawDeviceManager for each test."""
     return MockXRClawDeviceManager()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Registry completeness — all apps have state collectors
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def test_all_registered_apps_have_state_collectors():
-    """Every app_key in APP_KEY_MAP should have a state collector."""
-    from apps import APP_KEY_MAP
-    missing = set()
-    for (group, feature), app_key in APP_KEY_MAP.items():
-        if app_key not in STATE_COLLECTORS:
-            missing.add(app_key)
-    assert not missing, f"Apps without state collectors: {missing}"
-
-
-def test_supported_apps_count():
-    """Should have 20+ supported apps."""
-    apps = supported_apps()
-    assert len(apps) >= 20, f"Only {len(apps)} apps have state collectors: {apps}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -74,7 +54,6 @@ class TestSamsungNotesStateCollector:
         assert result["verified"] is True
         assert result["rating"] == 5
         assert result["method"] == "xrclaw"
-
 
 
     def test_create_note_not_found(self, dm):
@@ -193,30 +172,6 @@ class TestSamsungCalendarStateCollector:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Google Keep — create, modify, delete, read
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TestGoogleKeepStateCollector:
-    """Tests for agent_testers/apps/google_keep/state_collector.py"""
-
-    def test_create_note_success(self, dm):
-        from apps.google_keep.state_collector import capture_pre, verify
-
-        pre = capture_pre(dm)
-        dm.notes.create_note("Quick Note", "remember this")
-
-        result = verify(dm, "googlekeep", "create", "Create a note titled 'Quick Note'",
-                        "A note titled 'Quick Note' with content remember this", pre)
-        # Google Keep state collector may return unsupported for create mode
-        # (it delegates to the same notes accessor as Samsung Notes but may
-        # not support all modes). Accept either verified or unsupported.
-        assert result is not None
-        assert "rating" in result
-        assert result["method"] in ("xrclaw", "xrclaw_unsupported")
-
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # Google Calendar — create, modify, delete, read
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -267,8 +222,6 @@ class TestClockAlarmStateCollector:
                         "Delete the 07:00 alarm", pre)
         assert result["verified"] is True
         assert result["rating"] == 5
-
-
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -398,32 +351,6 @@ class TestDeviceStateCollector:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Samsung Camera — click (photo), videostart, videostop
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TestSamsungCameraStateCollector:
-    """Tests for agent_testers/apps/samsung_camera/state_collector.py"""
-
-    def test_camera_state_collector_exists(self):
-        """Camera state collector should be registered."""
-        assert "samsungcamera" in STATE_COLLECTORS
-
-    def test_capture_pre(self, dm):
-        from apps.samsung_camera.state_collector import capture_pre
-
-        pre = capture_pre(dm)
-        assert pre is not None
-
-    def test_verify_click(self, dm):
-        from apps.samsung_camera.state_collector import verify
-
-        result = verify(dm, "samsungcamera", "click", "Take a photo",
-                        "Take a photo", None)
-        assert result is not None
-        assert "rating" in result
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # Google Maps — query, navigate, eta
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -472,108 +399,6 @@ class TestGoogleTranslateStateCollector:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Spotify — create (play), play
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TestSpotifyStateCollector:
-    """Tests for agent_testers/apps/thirdparty_spotify/state_collector.py"""
-
-    def test_spotify_state_collector_exists(self):
-        assert "spotify" in STATE_COLLECTORS
-
-    def test_verify_play(self, dm):
-        from apps.thirdparty_spotify.state_collector import verify
-
-        dm.media.launch_spotify()
-        dm.media.play()
-        result = verify(dm, "spotify", "play", "Play music on Spotify",
-                        "Play music on Spotify", None)
-        assert result is not None
-        assert "rating" in result
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# YouTube Music — create (play), play, playlistcreate, playlistplay
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TestYouTubeMusicStateCollector:
-    """Tests for agent_testers/apps/google_youtube_music/state_collector.py"""
-
-    def test_youtube_music_state_collector_exists(self):
-        assert "youtubemusic" in STATE_COLLECTORS
-
-    def test_verify_play(self, dm):
-        from apps.google_youtube_music.state_collector import verify
-
-        dm.media.launch_youtube_music()
-        dm.media.play()
-        result = verify(dm, "youtubemusic", "play", "Play music on YouTube Music",
-                        "Play music on YouTube Music", None)
-        assert result is not None
-        assert "rating" in result
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Samsung Message — launch, send
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TestSamsungMessageStateCollector:
-    """Tests for agent_testers/apps/samsung_message/state_collector.py"""
-
-    def test_message_state_collector_exists(self):
-        assert "message" in STATE_COLLECTORS
-
-    def test_verify_launch(self, dm):
-        from apps.samsung_message.state_collector import verify
-
-        dm.set_foreground_app("com.samsung.android.messaging")
-        result = verify(dm, "message", "launch", "Open Messages",
-                        "Open Messages", None)
-        assert result is not None
-        assert "rating" in result
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# WhatsApp — launch
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TestWhatsAppStateCollector:
-    """Tests for agent_testers/apps/thirdparty_whatsapp/state_collector.py"""
-
-    def test_whatsapp_state_collector_exists(self):
-        assert "whatsapp" in STATE_COLLECTORS
-
-    def test_verify_launch(self, dm):
-        from apps.thirdparty_whatsapp.state_collector import verify
-
-        dm.set_foreground_app("com.whatsapp")
-        result = verify(dm, "whatsapp", "launch", "Open WhatsApp",
-                        "Open WhatsApp", None)
-        assert result is not None
-        assert "rating" in result
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Samsung Voice Recorder — launch
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TestSamsungVoiceRecorderStateCollector:
-    """Tests for agent_testers/apps/samsung_voicerecorder/state_collector.py"""
-
-    def test_voicerecorder_state_collector_exists(self):
-        assert "voicerecorder" in STATE_COLLECTORS
-
-    def test_verify_launch(self, dm):
-        from apps.samsung_voicerecorder.state_collector import verify
-
-        result = verify(dm, "voicerecorder", "launch", "Open Voice Recorder",
-                        "Open Voice Recorder", None)
-        assert result is not None
-        assert "rating" in result
-
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # Samsung Call — launch, call
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -589,43 +414,5 @@ class TestSamsungCallStateCollector:
         result = verify(dm, "call", "launch", "Open Phone",
                         "Open Phone", None)
 
-        assert result is not None
-        assert "rating" in result
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Google Tasks — create, modify, delete, read
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TestGoogleTasksStateCollector:
-    """Tests for agent_testers/apps/google_tasks/state_collector.py"""
-
-    def test_tasks_state_collector_exists(self):
-        assert "googletasks" in STATE_COLLECTORS or "googletask" in STATE_COLLECTORS
-
-    def test_verify_create(self, dm):
-        from apps.google_tasks.state_collector import verify
-
-        result = verify(dm, "googletasks", "create", "Create a task",
-                        "Create a task", None)
-        assert result is not None
-        assert "rating" in result
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Google Mail — read, send
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class TestGoogleMailStateCollector:
-    """Tests for agent_testers/apps/google_mail/state_collector.py"""
-
-    def test_mail_state_collector_exists(self):
-        assert "googlemail" in STATE_COLLECTORS
-
-    def test_verify_read(self, dm):
-        from apps.google_mail.state_collector import verify
-
-        result = verify(dm, "googlemail", "read", "Read my emails",
-                        "Read my emails", None)
         assert result is not None
         assert "rating" in result

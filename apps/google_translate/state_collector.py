@@ -22,7 +22,6 @@ from __future__ import annotations
 from ..helpers import result
 
 APP_KEYS = ("googletranslate",)
-ACCESSOR = "translation"
 PACKAGE_NAME = "com.google.android.apps.translate"
 
 

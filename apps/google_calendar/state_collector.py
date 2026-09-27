@@ -21,7 +21,6 @@ from ..helpers import (
 )
 
 APP_KEYS = ("googlecalendar",)
-ACCESSOR = "calendar"
 PACKAGE_NAME = "com.google.android.calendar"
 
 

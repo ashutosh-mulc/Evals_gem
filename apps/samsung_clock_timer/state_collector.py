@@ -17,7 +17,6 @@ from __future__ import annotations
 from ..helpers import result, get_foreground_package_with_fallback
 
 APP_KEYS = ("clocktimer",)
-ACCESSOR = "timers"
 PACKAGE_NAME = "com.sec.android.app.clockpackage"
 
 

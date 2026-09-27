@@ -2,7 +2,7 @@
 Deterministic judge handlers for this app.
 """
 
-from ..judge_helpers import handle_app_state, handle_camera, handle_video, handle_launch, handle_exit
+from ..judge_helpers import handle_camera, handle_video, handle_launch, handle_exit
 
 # Maps (app_key, action) → handler function
 HANDLERS = {

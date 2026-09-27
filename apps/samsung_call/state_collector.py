@@ -13,7 +13,6 @@ from ..helpers import (
 )
 
 APP_KEYS = ("call",)
-ACCESSOR = "phone"
 PACKAGE_NAME = "com.samsung.android.dialer"
 
 

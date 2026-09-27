@@ -2,13 +2,15 @@
 App plugin registry — auto-discovers all apps/ subdirectories and builds
 the global registries that the framework consumes.
 
-Each app directory under ``apps/`` must contain:
-    __init__.py          — exports APP_KEY, GROUP, FEATURE
-    config.py            — PACKAGE_NAME, ACTIVITY_NAME, ACTIONS
-    state_collector.py   — APP_KEYS, ACCESSOR, capture_pre(dm), verify(dm, ...)
-    judge.py             — HANDLERS dict with handler functions
-    prompt.json          — LLM judge prompts
-    consent.py           — CONSENT_RULES dict
+Each app directory under ``apps/`` contains:
+    config.py            — required: APP_KEY, GROUP, FEATURE (or FEATURES), PACKAGE_NAME, ACTIVITY_NAME, ACTIONS
+    state_collector.py   — optional: APP_KEYS, capture_pre(dm), verify(dm, ...)
+    judge.py             — optional: HANDLERS {(app_key, action): handler}
+    prompt.json          — optional: VLM judge prompts
+    consent.py           — optional: CONSENT_RULES
+    precondition.py      — optional: setup(...)
+
+Apps without a state collector or judge handler fall back to the VLM judge.
 
 The registry auto-discovers all subdirectories and merges their data into:
     APP_CONFIGS          — {group: {feature: {package_name, activity_name, actions}}}
@@ -17,7 +19,7 @@ The registry auto-discovers all subdirectories and merges their data into:
     JUDGE_HANDLERS       — {(app_key, action) → handler function}
     JUDGE_PROMPTS        — {app_key → prompt string/dict}
     CONSENT_RULES        — {(feature, action) → [(wav, pause, wait), ...]}
-    PRECONDITIONS        — {app_key → module with setup/verify}
+    PRECONDITIONS        — {app_key → module with setup}
 """
 
 from __future__ import annotations
@@ -121,16 +123,7 @@ def _discover_apps():
         except ImportError:
             pass
 
-        # ── prompt.py (optional, legacy) ──
-        try:
-            prompt_mod = importlib.import_module(f".prompt", package=pkg)
-            prompt = getattr(prompt_mod, "PROMPT", None)
-            if prompt:
-                JUDGE_PROMPTS[app_key] = prompt
-        except ImportError:
-            pass
-
-        # ── prompt.json (optional, preferred) ──
+        # ── prompt.json (optional) ──
         prompt_path = _THIS_DIR / app_dir / "prompt.json"
         if prompt_path.exists():
             JUDGE_PROMPTS[app_key] = json.loads(prompt_path.read_text(encoding="utf-8"))

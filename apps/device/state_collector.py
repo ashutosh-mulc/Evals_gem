@@ -27,7 +27,6 @@ from ..helpers import (
 )
 
 APP_KEYS = ("device", "device_mediacontrol", "notification")
-ACCESSOR = None  # dispatched per-app_key inside capture_pre / verify
 
 
 # ── capture_pre ───────────────────────────────────────────────────

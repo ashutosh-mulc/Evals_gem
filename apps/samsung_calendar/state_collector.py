@@ -31,7 +31,6 @@ from ..helpers import (
 )
 
 APP_KEYS = ("samsungcalendar",)
-ACCESSOR = "calendar"
 PACKAGE_NAME = "com.samsung.android.calendar"
 
 

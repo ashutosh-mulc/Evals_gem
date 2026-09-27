@@ -18,7 +18,6 @@ from ..helpers import (
 )
 
 APP_KEYS = ("samsungnote",)
-ACCESSOR = "notes"
 PACKAGE_NAME = "com.samsung.android.app.notes"
 
 

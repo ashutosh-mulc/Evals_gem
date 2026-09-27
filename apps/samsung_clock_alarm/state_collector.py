@@ -24,7 +24,6 @@ from ..helpers import (
 )
 
 APP_KEYS = ("clockalarm",)
-ACCESSOR = "alarms"
 PACKAGE_NAME = "com.sec.android.app.clockpackage"
 
 
