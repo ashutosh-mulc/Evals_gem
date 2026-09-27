@@ -184,16 +184,9 @@ class AppMetaInfoMixin:
                 q_info["metadata"]["post_state_screenshots"] = [new_path]
             return
 
-        # Handle camera queries
+        # Camera queries: capture flags come from the logcat/photo pull in logger()
+        # and land in app_state.log_analysis.
         if qt.feature == "camera":
-            if qt.action in ("videostart", "videostop"):
-                print("Video task - video verification will be done in logger()")
-                q_info["metadata"]["jinju_video_captured"] = False
-                q_info["metadata"]["jinju_video_path"] = None
-            else:
-                print("Camera task - image verification will be done in logger()")
-                q_info["metadata"]["jinju_image_captured"] = False
-                q_info["metadata"]["jinju_image_path"] = None
             return
 
         # Capture device info for all APP_EVAL_TASK

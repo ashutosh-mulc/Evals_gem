@@ -60,21 +60,12 @@ class DeviceCommandMixin:
         # Execute the action
         result = {"command_type": command_type, "device_state": device_state, "target_device": target_device}
 
+        # Capture flags for camera/video are set by logger() into app_state.log_analysis.
         if action == "capture_image":
-            # For camera commands, set up image capture flags
-            # Actual image capture happens via Jinju's camera system during invoke/logger
-            q_info["metadata"]["jinju_image_captured"] = False
-            q_info["metadata"]["jinju_image_path"] = None
             result["action"] = "image_capture_initiated"
-            print("Camera command: Image capture will be verified in logger()")
 
         elif action == "capture_video":
-            # For video commands, set up video recording flags
-            # Actual video recording happens via Jinju's camera system during invoke/logger
-            q_info["metadata"]["jinju_video_captured"] = False
-            q_info["metadata"]["jinju_video_path"] = None
             result["action"] = "video_capture_initiated"
-            print("Video command: Video recording will be verified in logger()")
 
         elif action == "get_volume":
             volume_info = device_info_util.get_volume()

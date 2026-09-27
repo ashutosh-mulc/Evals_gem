@@ -6,6 +6,7 @@ from automator.report_generator.utils.render_summary import SummaryRenderer
 from automator.report_generator.utils.render_report import render_part_html
 from automator.report_generator.report_writer import VQASample, VQADatasetWriter, QueueDBReader, MediaEncoder
 from utils.file_utils import *
+from apps.judge_helpers import get_flag
 
 class ReportGenerator:
     def __init__(self, input_db_path):
@@ -237,10 +238,8 @@ class ReportGenerator:
 
         # ── Camera/video flags (ONLY for camera queries) ──
         if group == "samsung" and feature == "camera":
-            if "jinju_image_captured" in meta_info:
-                grounding["image_captured"] = meta_info["jinju_image_captured"]
-            if "jinju_video_captured" in meta_info:
-                grounding["video_captured"] = meta_info.get("jinju_video_captured")
+            grounding["image_captured"] = get_flag(meta_info, "jinju_image_captured")
+            grounding["video_captured"] = get_flag(meta_info, "jinju_video_captured")
 
         # ── Extra logs (filtered, for all queries) ──
         extra_logs = meta_info.get("extra_logs", {})
