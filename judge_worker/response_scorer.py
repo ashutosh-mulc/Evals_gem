@@ -12,7 +12,7 @@ import warnings
 from collections import Counter
 
 from judge_worker.entropy import HallucinationScorer
-from judge_worker.deterministic_judge import DeterministicJudge
+from judge_worker.deterministic_judge import DeterministicJudge, ZERO_ENTROPY
 from utils.file_utils import *
 
 
@@ -105,12 +105,7 @@ class ResponseScorer:
     def __get_entropy_metrics(self, response_object: object):
         count = 0
         logprobs = response_object.choices[0].logprobs
-        scores_final = {
-            "entropy": 0.0,
-            "surprisal": 0.0,
-            "curvature": 0.0,
-            "entropy_delta": 0.0,
-        }
+        scores_final = dict(ZERO_ENTROPY)
         for entry in logprobs.content:
             if entry == None:
                 continue
@@ -462,7 +457,7 @@ class ResponseScorer:
         if eval_type != "APP_EVAL_TASK" or not DeterministicJudge.can_handle(question_type):
             return None
 
-        print("----DETERMINISTIC JUDGE----"); logging.info("----DETERMINISTIC JUDGE----")
+        logging.info("----DETERMINISTIC JUDGE----")
         dj = DeterministicJudge()
         dj_result = dj.evaluate(question_type, question, ai_response_text, metadata)
 
@@ -475,22 +470,12 @@ class ResponseScorer:
 
         # If rating is good enough, use the deterministic result
         if dj_rating is None or dj_rating > DeterministicJudge.BAD_RATING_THRESHOLD:
-            result_meta = {
-                "eval_id": eval_id,
-                "eval_type": eval_type,
-                "question_type": question_type,
-                "question": question,
-                "reference": gt_answer,
-                "answer": ai_response_text,
-                "response_time": start_time,
-                "duration": end_time - start_time,
-                "error_type": 0,
-                "judge_method": "deterministic",
-                "entropy_metrics": dj_entropy
-            }
+            result_meta = self._build_result_meta(
+                eval_id, eval_type, question_type, question, gt_answer,
+                ai_response_text, start_time, end_time, 0, "deterministic", dj_entropy
+            )
             return dj_response, result_meta
         else:
-            print(f"Deterministic judge gave low rating ({dj_rating}) — falling back to VLM judge")
             logging.info(f"Deterministic judge gave low rating ({dj_rating}) — falling back to VLM judge")
             return None
 
@@ -581,8 +566,7 @@ class ResponseScorer:
             })
             result_meta = self._build_result_meta(
                 eval_id, eval_type, question_type, question, gt_answer,
-                "", 0, 0, 0, "skipped",
-                {"entropy": 0.0, "surprisal": 0.0, "curvature": 0.0, "entropy_delta": 0.0}
+                "", 0, 0, 0, "skipped", dict(ZERO_ENTROPY)
             )
             return response, result_meta
 
@@ -608,7 +592,7 @@ class ResponseScorer:
 
         # ── VLM Judge ──
         judge_prompt = None
-        entropy_metrics = {"entropy": 0.0, "surprisal": 0.0, "curvature": 0.0, "entropy_delta": 0.0}
+        entropy_metrics = dict(ZERO_ENTROPY)
 
         ## Filter tts false positive cases
         if stt_json["text"].lower().replace("you", "").replace("i", "").replace("oh", "").replace(".", "").replace(" ", "") == "":

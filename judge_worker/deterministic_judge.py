@@ -30,6 +30,10 @@ from common.question_type import QuestionType
 
 logger = logging.getLogger(__name__)
 
+# Placeholder entropy metrics for results with no logprobs to score (deterministic
+# judge, skipped questions, error responses).
+ZERO_ENTROPY = {"entropy": 0.0, "surprisal": 0.0, "curvature": 0.0, "entropy_delta": 0.0}
+
 
 def _handler_key(question_type: str) -> Tuple[str, str]:
     """(app_key, action) used to look up a handler.
@@ -107,11 +111,4 @@ class DeterministicJudge:
         }
         response_json = json.dumps(response, ensure_ascii=False)
 
-        entropy_metrics = {
-            "entropy": 0.0,
-            "surprisal": 0.0,
-            "curvature": 0.0,
-            "entropy_delta": 0.0,
-        }
-
-        return response_json, entropy_metrics
+        return response_json, dict(ZERO_ENTROPY)
