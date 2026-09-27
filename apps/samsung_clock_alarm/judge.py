@@ -10,6 +10,7 @@ from ..judge_helpers import handle_app_state
 HANDLERS = {
     ("clockalarm", "create"): handle_app_state,
     ("clockalarm", "delete"): handle_app_state,
+    ("clockalarm", "launch"): handle_app_state,
     ("clockalarm", "disable"): handle_app_state,
     ("clockalarm", "modify"): handle_app_state,
     ("clockalarm", "stop"): handle_app_state,

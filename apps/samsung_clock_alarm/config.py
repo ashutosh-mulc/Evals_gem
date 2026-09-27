@@ -1,8 +1,12 @@
-"""Configuration for Samsung Clock Alarm app."""
+"""Configuration for Samsung Clock: the alarm feature plus the generic clock launch.
+
+Both online_samsung_clock_launch and online_samsung_clock_alarm_* map to the
+"clockalarm" app key, so they live in one app directory.
+"""
 
 APP_KEY = "clockalarm"
 GROUP = "samsung"
-FEATURE = "clock_alarm"
+FEATURES = ("clock_alarm", "clock")
 
 PACKAGE_NAME = "com.sec.android.app.clockpackage"
 ACTIVITY_NAME = "com.sec.android.app.clockpackage/com.sec.android.app.clockpackage.ClockPackage"
@@ -13,47 +17,53 @@ ALARM_TAB_X = 0.267
 ALARM_TAB_Y = 0.900
 
 ACTIONS = {
-    "launch": [
-        ['screenshot']
-    ],
-    "create": [
-        ['open_activity', ACTIVITY_NAME],
-        ['click', ALARM_TAB_X, ALARM_TAB_Y],
-        ['swipe', 0.556, 0.437, 0.556, 0.278],
-        ['screenshot'],
-        ['close_app']
-    ],
-    "read": [
-        ['open_activity', ACTIVITY_NAME],
-        ['click', ALARM_TAB_X, ALARM_TAB_Y],
-        ['screenshot'],
-        ['close_app']
-    ],
-    "modify": [
-        ['open_activity', ACTIVITY_NAME],
-        ['click', ALARM_TAB_X, ALARM_TAB_Y],
-        ['swipe', 0.556, 0.437, 0.556, 0.278],
-        ['screenshot'],
-        ['close_app']
-    ],
-    "stop": [
-        ['open_activity', ACTIVITY_NAME],
-        ['click', ALARM_TAB_X, ALARM_TAB_Y],
-        ['screenshot'],
-        ['close_app']
-    ],
-    "disable": [
-        ['open_activity', ACTIVITY_NAME],
-        ['click', ALARM_TAB_X, ALARM_TAB_Y],
-        ['screenshot'],
-        ['close_app']
-    ],
-    "delete": [
-        ['open_activity', ACTIVITY_NAME],
-        ['click', ALARM_TAB_X, ALARM_TAB_Y],
-        ['swipe', 0.556, 0.437, 0.556, 0.278],
-        ['screenshot'],
-        ['close_app']
-    ],
+    "clock_alarm": {
+        "launch": [
+            ['screenshot']
+        ],
+        "create": [
+            ['open_activity', ACTIVITY_NAME],
+            ['click', ALARM_TAB_X, ALARM_TAB_Y],
+            ['swipe', 0.556, 0.437, 0.556, 0.278],
+            ['screenshot'],
+            ['close_app']
+        ],
+        "read": [
+            ['open_activity', ACTIVITY_NAME],
+            ['click', ALARM_TAB_X, ALARM_TAB_Y],
+            ['screenshot'],
+            ['close_app']
+        ],
+        "modify": [
+            ['open_activity', ACTIVITY_NAME],
+            ['click', ALARM_TAB_X, ALARM_TAB_Y],
+            ['swipe', 0.556, 0.437, 0.556, 0.278],
+            ['screenshot'],
+            ['close_app']
+        ],
+        "stop": [
+            ['open_activity', ACTIVITY_NAME],
+            ['click', ALARM_TAB_X, ALARM_TAB_Y],
+            ['screenshot'],
+            ['close_app']
+        ],
+        "disable": [
+            ['open_activity', ACTIVITY_NAME],
+            ['click', ALARM_TAB_X, ALARM_TAB_Y],
+            ['screenshot'],
+            ['close_app']
+        ],
+        "delete": [
+            ['open_activity', ACTIVITY_NAME],
+            ['click', ALARM_TAB_X, ALARM_TAB_Y],
+            ['swipe', 0.556, 0.437, 0.556, 0.278],
+            ['screenshot'],
+            ['close_app']
+        ],
+    },
+    "clock": {
+        "launch": [
+            ['screenshot']
+        ],
+    },
 }
-
