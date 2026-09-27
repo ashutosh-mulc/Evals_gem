@@ -18,8 +18,7 @@ Compound features (e.g. clock_timer, clock_alarm, clock_stopwatch) are detected
 automatically: when len(parts) >= 5 and parts[2]_parts[3] exists in APP_CONFIGS
 or APP_KEY_MAP, the feature is the compound and the action is parts[4].
 
-This module replaces the copy-pasted parsing block that appeared in 7+ places
-across the codebase.
+Every consumer should read these fields instead of splitting the string itself.
 """
 
 from __future__ import annotations
@@ -65,6 +64,14 @@ class QuestionType:
         """True if this is a visual query (action contains 'visual')."""
         return "visual" in self.action
 
+    @property
+    def action_with_suffix(self) -> str:
+        """Everything after the feature: "thread_read" for online_samsung_message_thread_read.
+
+        Equals ``action`` for the normal 4-part format.
+        """
+        n_prefix = 2 + len(self.feature.split("_")) if self.feature else 0
+        return "_".join(self.raw.lower().split("_")[n_prefix:]) if n_prefix else ""
 
     # ── Parser ──────────────────────────────────────────────────────
 
@@ -110,7 +117,7 @@ class QuestionType:
             group_config = APP_CONFIGS.get(group, {})
             if compound in group_config or (group, compound) in APP_KEY_MAP:
                 feature = compound
-                action = parts[4] if len(parts) >= 5 else ""
+                action = parts[4]
 
         # Resolve app_key from (group, feature)
         app_key = APP_KEY_MAP.get((group, feature))

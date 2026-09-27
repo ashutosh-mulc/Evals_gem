@@ -26,9 +26,19 @@ import logging
 from typing import Optional, Tuple
 
 from apps import JUDGE_HANDLERS
-from apps.judge_helpers import parse_question_type
+from common.question_type import QuestionType
 
 logger = logging.getLogger(__name__)
+
+
+def _handler_key(question_type: str) -> Tuple[str, str]:
+    """(app_key, action) used to look up a handler.
+
+    Every device query is keyed ("device", action), including camera/video
+    actions whose features aren't registered in apps/device/config.py.
+    """
+    qt = QuestionType.parse(question_type)
+    return ("device" if qt.group == "device" else qt.app_key, qt.action)
 
 
 class DeterministicJudge:
@@ -54,8 +64,7 @@ class DeterministicJudge:
     @classmethod
     def can_handle(cls, question_type: str) -> bool:
         """Check if this question_type can be evaluated deterministically."""
-        app, task = parse_question_type(question_type)
-        return (app, task) in cls.HANDLER_REGISTRY
+        return _handler_key(question_type) in cls.HANDLER_REGISTRY
 
     def evaluate(
         self,
@@ -68,8 +77,7 @@ class DeterministicJudge:
 
         Returns (response_json, entropy_metrics) if handled, None if unsupported.
         """
-        app, task = parse_question_type(question_type)
-        handler_fn = self.HANDLER_REGISTRY.get((app, task))
+        handler_fn = self.HANDLER_REGISTRY.get(_handler_key(question_type))
 
         if not handler_fn:
             return None

@@ -29,56 +29,28 @@ from __future__ import annotations
 import json
 from typing import Optional
 
+from common.question_type import QuestionType
+
 
 # ── Feature detection ──────────────────────────────────────────────
 
 def _get_feature(question_type: str) -> str:
-    """Extract the feature category from a question_type string.
+    """Device feature category that decides which state the judge sees.
 
     Examples:
         "online_device_volume_up"          → "volume"
         "online_device_datetime_time"      → "datetime_time"
-        "online_device_battery_glasses"     → "battery"
-        "online_device_mediacontrol_play"  → "mediacontrol"
-        "online_device_notification_read"  → "notification"
-        "online_device_camera_click"       → "camera"
+        "online_device_mediacontrol_like"  → "mediacontrol_like_dislike"
+        "online_samsung_notes_create"      → "unknown" (not a device query)
     """
-    qt = (question_type or "").lower()
-    parts = qt.split("_")
-    if len(parts) < 4:
+    qt = QuestionType.parse(question_type)
+    if qt.group != "device":
         return "unknown"
-
-    group = parts[1]
-    if group != "device":
-        return "unknown"
-
-    # Compound features: datetime_time, datetime_date, mediacontrol_*
-    # parts[2] is the feature base, parts[3] may be a sub-feature or action
-    feature_base = parts[2]
-
-    if feature_base == "datetime":
-        # datetime_time, datetime_date
-        if len(parts) >= 4:
-            return f"datetime_{parts[3]}"
-        return "datetime"
-
-    if feature_base == "mediacontrol":
-        # For like/dislike, no device_info needed — app_state.log_analysis has the flags
-        if len(parts) >= 4 and parts[3] in ("like", "dislike"):
-            return "mediacontrol_like_dislike"
-        return "mediacontrol"
-
-    if feature_base == "notification":
-        return "notification"
-
-    if feature_base == "camera":
-        return "camera"
-
-    if feature_base == "video":
-        return "video"
-
-    # Simple features: volume, battery, dnd
-    return feature_base
+    if qt.feature == "datetime":
+        return f"datetime_{qt.action}"
+    if qt.feature == "mediacontrol" and qt.action in ("like", "dislike"):
+        return "mediacontrol_like_dislike"
+    return qt.feature
 
 
 # ── XML formatting helpers ──────────────────────────────────────────
@@ -290,16 +262,8 @@ def _format_feature(device_info: dict, feature: str) -> str:
 
 
 def _resolve_battery_target(question_type: str) -> str:
-    """Determine which device's battery to use based on the question_type action.
-
-    'glasses' → jinju, 'companion'/'phone' → companion
-    """
-    qt = (question_type or "").lower()
-    if "glasses" in qt:
-        return "jinju"
-    if "companion" in qt or "phone" in qt:
-        return "companion"
-    return "jinju"  # default
+    """'companion'/'phone' battery queries read the companion; everything else the glasses."""
+    return "companion" if QuestionType.parse(question_type).action in ("companion", "phone") else "jinju"
 
 
 # ── Main entry point ───────────────────────────────────────────────
@@ -326,31 +290,11 @@ def filter_device_info(device_info: Optional[dict], question_type: str) -> str:
     if feature in _NO_INFO_FEATURES:
         return ""
 
-    # Unknown feature — return full JSON as safe fallback
-    if feature == "unknown":
-        return json.dumps(device_info, indent=2)
-
-    # Battery needs special handling — target depends on action (glasses vs companion)
     if feature == "battery":
-        target = _resolve_battery_target(question_type)
-        element = _format_battery(device_info, target)
-        if not element:
-            return ""
-        return f"<device_state>\n  {element}\n</device_state>"
-
-    # Pre + post features
-    if feature in _PRE_POST_FEATURES:
+        element = _format_battery(device_info, _resolve_battery_target(question_type))
+    elif feature in _PRE_POST_FEATURES or feature in _POST_ONLY_FEATURES:
         element = _format_feature(device_info, feature)
-        if not element:
-            return ""
-        return f"<device_state>\n  {element}\n</device_state>"
+    else:
+        return json.dumps(device_info, indent=2)  # unrecognised feature: full JSON as a safe fallback
 
-    # Post-only features
-    if feature in _POST_ONLY_FEATURES:
-        element = _format_feature(device_info, feature)
-        if not element:
-            return ""
-        return f"<device_state>\n  {element}\n</device_state>"
-
-    # Fallback: full JSON
-    return json.dumps(device_info, indent=2)
+    return f"<device_state>\n  {element}\n</device_state>" if element else ""

@@ -11,7 +11,9 @@ import re
 from datetime import datetime
 from typing import Tuple
 
-from ..judge_helpers import get_device_state, get_flag, parse_question_type
+from common.question_type import QuestionType
+
+from ..judge_helpers import get_device_state, get_flag
 
 
 # =============================================================================
@@ -126,10 +128,9 @@ def handle_date(question: str, ai_response: str, metadata: dict) -> Tuple[int, s
 
 def handle_battery(question: str, ai_response: str, metadata: dict) -> Tuple[int, str]:
     """Evaluate battery query: parse % from TTS, compare vs device battery."""
-    question_type = metadata.get("question_type", "").lower()
     raw_state = metadata.get("device_info_post", {})
 
-    if "companion" in question_type:
+    if QuestionType.parse(metadata.get("question_type", "")).action == "companion":
         battery = raw_state.get("companion", {}).get("battery", {})
     else:
         battery = raw_state.get("jinju", {}).get("battery", {})
@@ -183,8 +184,7 @@ def handle_volume(question: str, ai_response: str, metadata: dict) -> Tuple[int,
     For mute/unmute: passes if ANY stream's muted flag transitioned correctly.
     For read: uses MUSIC streamVolume from jinju (backward compat).
     """
-    question_type = metadata.get("question_type", "").lower()
-    _, action = parse_question_type(question_type)
+    action = QuestionType.parse(metadata.get("question_type", "")).action
 
     pre_full = metadata.get("device_info_pre", {})
     post_full = metadata.get("device_info_post", {})
@@ -374,8 +374,7 @@ def handle_volume(question: str, ai_response: str, metadata: dict) -> Tuple[int,
 
 def handle_dnd(question: str, ai_response: str, metadata: dict) -> Tuple[int, str]:
     """Evaluate DND query: parse on/off from TTS, compare vs device DND state."""
-    question_type = metadata.get("question_type", "").lower()
-    _, action = parse_question_type(question_type)
+    action = QuestionType.parse(metadata.get("question_type", "")).action
 
     pre_state = get_device_state(metadata, "pre")
     post_state = get_device_state(metadata, "post")
@@ -423,8 +422,7 @@ def handle_dnd(question: str, ai_response: str, metadata: dict) -> Tuple[int, st
 
 def handle_mediacontrol(question: str, ai_response: str, metadata: dict) -> Tuple[int, str]:
     """Evaluate media control query using pre/post device media state."""
-    question_type = metadata.get("question_type", "").lower()
-    _, action = parse_question_type(question_type)
+    action = QuestionType.parse(metadata.get("question_type", "")).action
 
     pre_state = get_device_state(metadata, "pre")
     post_state = get_device_state(metadata, "post")
@@ -456,7 +454,7 @@ def handle_mediacontrol(question: str, ai_response: str, metadata: dict) -> Tupl
         pre_flag = " [No pre-query snapshot; existence-only check, weaker guarantee.]"
 
     # Handle seek actions (seekforward, seekback, skip by X seconds)
-    if action in ("seekforward", "seekback", "seek") or "seek" in question_type:
+    if "seek" in action:
         # Parse seek amount from question (e.g., "skip forward 10 seconds" → 10000ms)
         import re
         seek_match = re.search(r'(\d+)\s*(?:second|sec|s)', question.lower())
@@ -596,8 +594,7 @@ def handle_media_like_dislike(question: str, ai_response: str, metadata: dict) -
     These flags are set when "Undo like" or "Undo dislike" patterns are detected
     in device logs by the LogcatAnalyzer.
     """
-    question_type = metadata.get("question_type", "").lower()
-    _, action = parse_question_type(question_type)
+    action = QuestionType.parse(metadata.get("question_type", "")).action
 
     # Get like/dislike flags from app_state.log_analysis (via get_flag helper)
     liked = get_flag(metadata, "liked")

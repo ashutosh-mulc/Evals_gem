@@ -3,6 +3,7 @@ from judge_worker.judge_prompts import *
 from judge_worker.judge_response_parser import parse_judge_response
 from judge_worker.device_info_filter import filter_device_info
 from apps.judge_helpers import get_flag
+from common.question_type import QuestionType
 import requests
 import json
 import logging
@@ -184,8 +185,6 @@ class ResponseScorer:
         """Resolve the correct prompt template for an APP_EVAL_TASK.
 
         Handles:
-        - 4-part question_type parsing → app_name + app_mode
-        - Compound features (clock_timer, clock_alarm)
         - Notification redirect to dedicated prompt
         - Callable device lambda (with filtered device_info)
         - Mode-specific dict prompts
@@ -194,22 +193,12 @@ class ResponseScorer:
 
         Returns the resolved prompt string.
         """
-        from apps import get_app_key
+        qt = QuestionType.parse(question_type)
+        app_name = qt.app_key or ""
+        app_mode = qt.action
 
-        app_name = get_app_key(question_type) or ""
-
-        # Extract action (app_mode) from the 4-part format
-        parts = question_type.lower().split("_")
-        app_mode = parts[3] if len(parts) >= 4 else ""
-        # For compound features (e.g. clock_timer), action is parts[4]
-        if len(parts) >= 5:
-            from apps import APP_CONFIGS
-            group_config = APP_CONFIGS.get(parts[1], {})
-            if f"{parts[2]}_{parts[3]}" in group_config:
-                app_mode = parts[4] if len(parts) >= 5 else ""
-
-        # For device_notifications queries, use the dedicated "notifications" prompt
-        if app_name in ("device", "notification") and "notification" in question_type.lower():
+        # Device notification queries use the dedicated "notifications" prompt
+        if qt.app_key == "device" and qt.feature == "notification":
             app_name = "notifications"
 
         # Check if prompt structure is mode-specific (dict) or legacy (string)

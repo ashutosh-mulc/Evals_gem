@@ -208,21 +208,9 @@ def get_task_list(question_type: str) -> list | None:
     if not group_config:
         return None
 
-    # Try direct feature lookup
-    feature_config = group_config.get(qt.feature)
-    if feature_config:
-        actions = feature_config.get("actions", {})
-        # Try single action
-        if qt.action in actions:
-            return actions[qt.action]
-        # Try compound action: action + "_" + next part (e.g. "thread_read")
-        parts = question_type.lower().split("_")
-        if len(parts) >= 5:
-            compound_action = f"{parts[3]}_{parts[4]}"
-            if compound_action in actions:
-                return actions[compound_action]
-
-    return None
+    actions = group_config.get(qt.feature, {}).get("actions", {})
+    # Multi-word actions (e.g. "thread_read") are keyed by the full suffix
+    return actions.get(qt.action) or actions.get(qt.action_with_suffix)
 
 
 def get_app_info(question_type: str) -> dict | None:

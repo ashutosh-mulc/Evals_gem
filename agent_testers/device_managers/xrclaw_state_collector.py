@@ -43,6 +43,7 @@ import logging
 from agent_testers.device_managers.state_collector import StateCollector
 from apps import STATE_COLLECTORS, supported_apps as _registry_supported_apps
 from apps.helpers import unsupported_result, error_result
+from common.question_type import QuestionType
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +205,7 @@ class XRClawStateCollector(StateCollector):
             # the TTS response and gt_answer.
             return {
                 "method": "device_info",
-                "query_type": self._extract_query_type(question_type),
+                "query_type": QuestionType.parse(question_type).action,
                 "verified": False,  # not evaluated here
                 "rating": 0,  # not evaluated here
                 "analysis": "Device state fetched via XRClaw — evaluation deferred to DeterministicJudge.",
@@ -215,17 +216,10 @@ class XRClawStateCollector(StateCollector):
             logger.error("Device info fetch error for %s: %s", question_type, e, exc_info=True)
             return {
                 "method": "device_info_error",
-                "query_type": self._extract_query_type(question_type),
+                "query_type": QuestionType.parse(question_type).action,
                 "verified": False,
                 "rating": 0,
                 "analysis": f"Device info fetch failed: {e}",
                 "actual_state": {},
                 "expected": gt_answer,
             }
-
-
-    @staticmethod
-    def _extract_query_type(question_type: str) -> str:
-        """Extract query type from question_type string (e.g., 'device_online_battery' → 'battery')."""
-        parts = question_type.lower().split('_')
-        return parts[-1] if len(parts) >= 3 else question_type

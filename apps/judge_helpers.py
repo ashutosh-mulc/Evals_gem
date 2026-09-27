@@ -13,6 +13,7 @@ import logging
 from typing import Tuple
 
 from apps.helpers import VERIFIED_METHODS
+from common.question_type import QuestionType
 
 logger = logging.getLogger(__name__)
 
@@ -76,60 +77,15 @@ def get_device_state(metadata: dict, when: str = "post") -> dict:
     else:
         state = metadata.get("device_info_post", {})
 
-    question_type = metadata.get("question_type", "").lower()
-
-    if "battery_companion" in question_type or "mediacontrol" in question_type or "_dnd_" in question_type:
-        return state.get("companion", {})
-    else:
-        return state.get("jinju", {})
+    qt = QuestionType.parse(metadata.get("question_type", ""))
+    uses_companion = (qt.feature == "battery" and qt.action == "companion") or qt.feature in ("mediacontrol", "dnd")
+    return state.get("companion" if uses_companion else "jinju", {})
 
 
 def get_flag(metadata: dict, flag_name: str) -> bool:
     """Read a boolean log-analysis flag (e.g. jinju_image_captured) from metadata."""
     app_state = metadata.get("app_state") or {}
     return bool((app_state.get("log_analysis") or {}).get(flag_name, False))
-
-
-def parse_question_type(question_type: str) -> Tuple[str, str]:
-    """Parse question_type into (app_key, action).
-
-    IMPORTANT: Uses lazy imports to avoid circular dependency during apps/ initialization.
-
-    Handles formats:
-    - "online_samsung_notes_create" → ("samsungnote", "create")
-    - "online_google_youtubemusic_launch" → ("youtubemusic", "launch")
-    - "online_youtubemusic_launch" → ("youtubemusic", "launch") [short format]
-    - "online_device_battery" → ("device", "battery")
-    """
-    from apps import get_app_key, APP_CONFIGS, APP_KEY_MAP
-
-    parts = question_type.lower().split("_")
-
-    # Handle device question types: "online_device_battery" or similar (parts[1] == "device", parts >= 3)
-    if len(parts) >= 3 and parts[1] == "device":
-        # Action is the last part (e.g., "battery", "up", "time")
-        action = parts[-1]
-        return ("device", action)
-
-    # Try standard parsing first: "online_samsung_notes_create" or "online_google_youtubemusic_launch"
-    app_key = get_app_key(question_type) or ""
-    action = parts[3] if len(parts) >= 4 else ""
-    if len(parts) >= 5:
-        group_config = APP_CONFIGS.get(parts[1], {})
-        if f"{parts[2]}_{parts[3]}" in group_config:
-            action = parts[4] if len(parts) >= 5 else ""
-
-    # If we got an app_key, return it
-    if app_key:
-        return (app_key, action)
-
-    # Fallback: short format "online_youtubemusic_launch" → app_key is parts[1]
-    # Only accept if it structurally matches: exactly 3 parts and parts[1] is a known app_key
-    if len(parts) == 3 and parts[0] == "online":
-        if parts[1] in APP_KEY_MAP.values():
-            return (parts[1], parts[2])
-
-    return (app_key, action)
 
 
 # =============================================================================
@@ -203,8 +159,7 @@ def handle_launch(question: str, ai_response: str, metadata: dict) -> Tuple[int,
     """Evaluate app launch query: check if the app's package is running."""
     from apps import get_package_name
     
-    question_type = metadata.get("question_type", "")
-    app, _ = parse_question_type(question_type)
+    app = QuestionType.parse(metadata.get("question_type", "")).app_key
 
     # Get package name from registry (single source of truth)
     package = get_package_name(app)
@@ -233,8 +188,7 @@ def handle_exit(question: str, ai_response: str, metadata: dict) -> Tuple[int, s
     """
     from apps import get_package_name
 
-    question_type = metadata.get("question_type", "")
-    app, _ = parse_question_type(question_type)
+    app = QuestionType.parse(metadata.get("question_type", "")).app_key
 
     # Get package name from registry (single source of truth)
     package = get_package_name(app)

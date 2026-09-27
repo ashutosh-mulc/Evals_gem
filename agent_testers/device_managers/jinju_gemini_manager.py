@@ -137,13 +137,6 @@ class DeviceManager(
         ## This makes noe 
         self._adb.unlock(self.companion_device)
 
-        
-        q_type = q_info.get("question_type", "").lower()
-
-        # 4-part format: <connectivity>_<group>_<feature>_<action>
-        parts = q_type.split("_") if q_type else []
-        group = parts[1] if len(parts) >= 2 else ""
-        feature = parts[2] if len(parts) >= 3 else ""
 
         invoke_type = q_info["eval_type"]
         qt = QuestionType.parse(q_info.get("question_type", ""))
@@ -172,7 +165,7 @@ class DeviceManager(
         ## this is not reliable, as gemini's ui is not very responsive and sometimes the widget's aren't 
         ## displayed live, after closing and reopening the session its visible
         
-        if feature in ("message", "call") or group == "thirdparty" and feature == "whatsapp":
+        if qt.feature in ("message", "call") or (qt.group, qt.feature) == ("thirdparty", "whatsapp"):
             self._adb.start_activity(
                 self.companion_device,
                 "com.google.android.apps.bard/com.google.android.apps.bard.shellapp.BardEntryPointActivity"

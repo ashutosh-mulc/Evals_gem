@@ -7,6 +7,7 @@ from automator.report_generator.utils.render_report import render_part_html
 from automator.report_generator.report_writer import VQASample, VQADatasetWriter, QueueDBReader, MediaEncoder
 from utils.file_utils import *
 from apps.judge_helpers import get_flag
+from common.question_type import QuestionType
 
 class ReportGenerator:
     def __init__(self, input_db_path):
@@ -178,12 +179,8 @@ class ReportGenerator:
         """
         grounding = {}
 
-        question_type = meta_info.get("question_type", "").lower()
-        parts = question_type.split("_")
-        connectivity = parts[0] if len(parts) >= 1 else ""
-        group = parts[1] if len(parts) >= 2 else ""
-        feature = parts[2] if len(parts) >= 3 else ""
-        action = parts[3] if len(parts) >= 4 else ""
+        qt = QuestionType.parse(meta_info.get("question_type", ""))
+        group, feature, action = qt.group, qt.feature, qt.action
 
         # ── State collector result (for all app + notification queries) ──
         app_state = meta_info.get("app_state") or {}

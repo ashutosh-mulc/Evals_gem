@@ -49,7 +49,7 @@ HANDLERS = {
     ("device", "like"): handle_media_like_dislike,
     ("device", "dislike"): handle_media_like_dislike,
 
-    # Camera/Video (legacy device-level format: online_device_click, etc.)
+    # Camera/Video (online_device_camera_click, online_device_video_videostart, ...)
     ("device", "click"): handle_camera,
     ("device", "videostart"): handle_video,
     ("device", "videostop"): handle_video,
