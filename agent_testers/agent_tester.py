@@ -38,12 +38,11 @@ from agent_testers.conversation import SESSION_END_S, LogcatEvents, run_conversa
 from agent_testers.preconditions import PreconditionManager
 from agent_testers.robopod_manager import RobopodManager
 from common.logging_config import setup_logging
-from common.message import Message
+from common.message import run_worker
 from common.question_type import QuestionType
 from services.host.display_server import DisplayServer
 from utils.file_utils import Base64Converter, JSONFileManager
 from utils.message_transport import MessagePipes
-
 
 
 class AgentTester:
@@ -76,7 +75,6 @@ class AgentTester:
         self.config = JSONFileManager.load_file(config_path)
 
         self.tc_excecuted = 0
-        self.stop_process = False
 
         device_manager_module = importlib.import_module(DEVICE_MANAGERS[self.config["device_manager_type"]])
         DeviceManager = device_manager_module.DeviceManager
@@ -142,9 +140,7 @@ class AgentTester:
                                             write_path = "/tmp/agent_tester_to_coordinator",
                                             write_first = True
                                             )       
-        self.message_service_config = { 
-                                    "wait_time": self.config["message_service"]["wait_time"]
-                                    }
+        self.wait_time = self.config["message_service"]["wait_time"]
 
 
         #host the display service
@@ -174,40 +170,6 @@ class AgentTester:
         self.display_server.set_image_status(encoded_image, "show")
         time.sleep(1)
     
-    def send_message(self, payload: dict, current_status: str):
-        """Send a request message to the coordinator and wait for response.
-
-        Uses FIFO-based message transport (MessagePipes) to communicate with
-        the metric_coordinator. Messages are JSON-encoded with metadata including
-        eval_id, message type, status, and payload.
-
-        Args:
-            payload: Dict containing evaluation data (or empty for status updates).
-            current_status: Current worker status (READY, WAIT, WORK, STOP).
-
-        Returns:
-            Tuple of (response_payload, response_status) from coordinator.
-
-        Raises:
-            Message validation errors if response is malformed or timeout occurs.
-        """
-        msg = Message(
-            eval_id = payload["eval_id"] if payload else "",
-            msg_type = "REQUEST",
-            status = current_status,
-            payload = json.dumps(payload) if payload else "",
-            sender = "agent_tester"
-        )
-
-        msg_bytes = json.dumps(msg.get_json()).encode()
-        logging.debug(f"Sent request: {msg_bytes}")
-        response_bytes = self.message_service.request(payload = msg_bytes, timeout = 10)
-        logging.debug(f"Received response: {response_bytes}")
-        
-        response = json.loads(response_bytes.decode())
-        Message.check_response(msg.msg_id, "coordinator", response)
-
-        return response["payload"], response["status"]      
         
     
     def create_payload(self, itr_info: dict) -> dict:
@@ -487,48 +449,18 @@ class AgentTester:
 
         return question_info
     
+    def work(self, question: str):
+        """Run one question; returns (eval_id, payload) for the coordinator."""
+        payload = self.create_payload(self.execute(question))
+        logging.info("------Submitting for Evaluation-------")
+        return payload["eval_id"], json.dumps(payload)
+
     def client_server(self):
-        """Main client-server loop for coordinator communication.
-
-        Runs a state machine that:
-          - READY: Announces readiness, waits for work
-          - WAIT: Pauses between queries (configurable wait_time)
-          - WORK: Executes query via execute(), sends payload to coordinator
-          - STOP: Exits the loop and terminates
-
-        The loop continues until receiving a STOP status from the coordinator.
-        Each WORK cycle executes one evaluation query and returns results.
-        """
+        """Serve the coordinator until it sends STOP (see common.message.run_worker)."""
         self.device_manager.terminate()
         self.display_server_thread.start()  # start the display server
         time.sleep(1)
-
-        current_status = "READY"
-        question = ""
-
-        while not self.stop_process:
-            payload = {}
-
-            match(current_status):
-                case "READY":
-                    logging.info("Agent tester is ready!")
-
-                case "WAIT":
-                    time.sleep(self.message_service_config["wait_time"])
-
-                case "WORK":
-                    evaluation_info = self.execute(question)
-                    payload = self.create_payload(evaluation_info)
-                    logging.info("------Submitting for Evaluation-------")
-
-                case "STOP":
-                    self.stop_process = False
-                    break
-
-                case _:
-                    raise NotImplementedError
-
-            question, current_status = self.send_message(payload, current_status)
+        run_worker(self.message_service, "agent_tester", self.wait_time, self.work)
 
 
 if __name__ == "__main__":

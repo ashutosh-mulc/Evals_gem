@@ -1,3 +1,6 @@
+import json
+import logging
+import time
 import uuid
 
 message_type = [
@@ -41,3 +44,35 @@ class Message:
         assert response["msg_type"] == "RESPONSE", "Bad msg_type!"
         assert response["msg_id"] == msg_id, "Bad msg_id!"
         assert response["sender"] == sender, "Bad sender!"
+
+
+def run_worker(pipes, sender: str, wait_time: float, do_work) -> None:
+    """Client side of the coordinator protocol (agent_tester, judge_worker).
+
+    Each request carries our current status; the coordinator's reply sets the next one:
+    READY (first request), WAIT → sleep, WORK → ``do_work(payload)`` returns
+    (eval_id, result_payload) to send back, STOP → return.
+    """
+    status, data = "READY", ""
+    while True:
+        eval_id, payload = "", ""
+        if status == "READY":
+            logging.info(f"{sender} is ready!")
+        elif status == "WAIT":
+            time.sleep(wait_time)
+        elif status == "WORK":
+            eval_id, payload = do_work(data)
+        elif status == "STOP":
+            return
+        else:
+            raise NotImplementedError(status)
+
+        msg = Message(eval_id=eval_id, msg_type="REQUEST", status=status, payload=payload, sender=sender)
+        msg_bytes = json.dumps(msg.get_json()).encode()
+        logging.debug(f"Sent request: {msg_bytes}")
+        response_bytes = pipes.request(payload=msg_bytes, timeout=10)
+        logging.debug(f"Received response: {response_bytes}")
+
+        response = json.loads(response_bytes.decode())
+        Message.check_response(msg.msg_id, "coordinator", response)
+        status, data = response["status"], response["payload"]
