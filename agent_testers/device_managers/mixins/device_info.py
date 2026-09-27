@@ -32,11 +32,7 @@ class DeviceInfoMixin:
     """
 
     def capture_device_info(self, q_info, capture_type="post", device_state=None):
-        """Capture device state at query time for APP_EVAL_TASK.
-
-        When XRClaw is available, uses XRClaw's DeviceInfoApp (secure ADB,
-        list-args, no shell=True) instead of the standalone DeviceInfo class.
-        Falls back to DeviceInfo when XRClaw is not enabled.
+        """Capture device state at query time for APP_EVAL_TASK; see _capture_device_info().
 
         Args:
             q_info: The evaluation info dictionary
@@ -51,11 +47,7 @@ class DeviceInfoMixin:
         assert adb.is_device_online(self.companion_device), \
             f"Device {self.companion_device} NOT online!"
 
-        # --- Use XRClaw DeviceInfoApp if available ---
-        if self.state_collector is not None:
-            device_info = self._capture_device_info_xrclaw()
-        else:
-            device_info = self._capture_device_info_legacy()
+        device_info = self._capture_device_info()
 
         # Store in metadata based on capture type
         metadata_key = f"device_info_{capture_type}"
@@ -70,80 +62,43 @@ class DeviceInfoMixin:
             json.dump(device_info, f, indent=2)
         q_info["metadata"][f"{metadata_key}_path"] = device_info_path
 
-    def _capture_device_info_xrclaw(self) -> dict:
-        """Capture device info using XRClaw DeviceInfoApp (secure ADB).
+    def _capture_device_info(self) -> dict:
+        """Capture full device state: Jinju (battery/time/date/volume) plus companion
+        (battery/volume/DND/media).
 
-        Jinju-side info (battery, time, date, volume) is fetched via the legacy
-        DeviceInfo class because the XRClaw DeviceManager is connected to the
-        companion device, not the Jinju glasses.
-        Companion-side info (DND, media) uses XRClaw.
+        Jinju info and companion battery/volume always go through the legacy
+        DeviceInfo class (plain ADB) — the XRClaw DeviceManager is connected to the
+        companion device, not the Jinju glasses. Companion DND/media use XRClaw's
+        DeviceInfoApp (secure ADB, list-args) when a state collector is configured,
+        else fall back to the same plain-ADB path.
         """
         from agent_testers.device_managers.device_config import DeviceInfo
 
-        # Jinju device info via legacy DeviceInfo (correct device)
         jinju_di = DeviceInfo(device=self.jinju_device)
         battery_info = jinju_di.get_battery()
         time_info = jinju_di.get_time()
         volume_info = jinju_di.get_volume()
-
-        # Parse date from datetime string
         date_info = self._parse_date_from_time(time_info)
-
         jinju_device_info = self._build_jinju_device_info(battery_info, time_info, date_info, volume_info)
-
-        # Companion device info (DND, media, battery) via XRClaw + DeviceInfo
-        from python_automation import DeviceManager as XRClawDM
-        companion_dm = XRClawDM(adb_path="adb", device=self.companion_device)
-        dnd = companion_dm.device_info.get_dnd_mode()
-        media = companion_dm.device_info.get_media()
 
         companion_di = DeviceInfo(device=self.companion_device)
         companion_battery = companion_di.get_battery()
         companion_volume = companion_di.get_volume()
 
-        companion_device_info = self._build_companion_device_info(
-            companion_battery, dnd.enabled, media, companion_volume
-        )
-
-        return {
-            "jinju": jinju_device_info,
-            "companion": companion_device_info,
-            "captured_at_epoch": int(time.time() * 1000)
-        }
-
-    def _capture_device_info_legacy(self) -> dict:
-        """Capture device info using the legacy DeviceInfo class (fallback)."""
-        from agent_testers.device_managers.device_config import DeviceInfo
-
-        # --- Jinju Device Info ---
-        device_info_util = DeviceInfo(device=self.jinju_device)
-
-        battery_info = device_info_util.get_battery()
-        time_info = device_info_util.get_time()
-        volume_info = device_info_util.get_volume()
-
-        # Parse date from datetime string
-        date_info = self._parse_date_from_time(time_info)
-
-        jinju_device_info = self._build_jinju_device_info(battery_info, time_info, date_info, volume_info)
-
-        # --- Companion Device Info (DND Mode and Media State) ---
-        from utils.adb_client import AdbClient
-        adb = AdbClient()
-        dnd_enabled = adb.get_dnd_mode(self.companion_device)
-        dnd_mode = "true" if dnd_enabled else "false"
-
-        # --- Companion Device Info (Media State + Battery) ---
-        companion_info_util = DeviceInfo(device=self.companion_device)
-        media_info = companion_info_util.get_media()
-        companion_battery = companion_info_util.get_battery()
-        companion_volume = companion_info_util.get_volume()
+        if self.state_collector is not None:
+            from python_automation import DeviceManager as XRClawDM
+            companion_dm = XRClawDM(adb_path="adb", device=self.companion_device)
+            dnd_enabled = companion_dm.device_info.get_dnd_mode().enabled
+            media_info = companion_dm.device_info.get_media()
+        else:
+            from utils.adb_client import AdbClient
+            dnd_enabled = AdbClient().get_dnd_mode(self.companion_device)
+            media_info = companion_di.get_media()
 
         companion_device_info = self._build_companion_device_info(
-            companion_battery, dnd_mode == "true", media_info, companion_volume
+            companion_battery, dnd_enabled, media_info, companion_volume
         )
 
-        # --- Combine into single device_info object ---
         return {
             "jinju": jinju_device_info,
             "companion": companion_device_info,
