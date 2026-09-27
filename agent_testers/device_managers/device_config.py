@@ -153,6 +153,22 @@ class DeviceInfo:
 
         return output.stdout
 
+    def _safe_run_adb(self, *shell_args, result: dict) -> str | None:
+        """Run an ADB shell command; on failure, set result["error"] and return None.
+
+        Shared by every get_*() method so each one only handles its own parsing,
+        not adb-not-found / timeout / non-zero-exit separately.
+        """
+        try:
+            return self._run_adb(*shell_args)
+        except FileNotFoundError:
+            result["error"] = "ADB not found. Ensure adb is installed and in your PATH."
+        except subprocess.TimeoutExpired:
+            result["error"] = "ADB command timed out. Is the device responding?"
+        except RuntimeError as e:
+            result["error"] = str(e)
+        return None
+
     @staticmethod
     def _parse_field(text, field_name, cast=int):
         """
@@ -208,16 +224,8 @@ class DeviceInfo:
             "error": None,
         }
 
-        try:
-            text = self._run_adb("dumpsys", "battery")
-        except FileNotFoundError:
-            result["error"] = "ADB not found. Ensure adb is installed and in your PATH."
-            return result
-        except subprocess.TimeoutExpired:
-            result["error"] = "ADB command timed out. Is the device responding?"
-            return result
-        except RuntimeError as e:
-            result["error"] = str(e)
+        text = self._safe_run_adb("dumpsys", "battery", result=result)
+        if text is None:
             return result
 
         # Parse level
@@ -275,17 +283,10 @@ class DeviceInfo:
             "error": None,
         }
 
-        try:
-            raw = self._run_adb("date").strip()
-        except FileNotFoundError:
-            result["error"] = "ADB not found. Ensure adb is installed and in your PATH."
+        text = self._safe_run_adb("date", result=result)
+        if text is None:
             return result
-        except subprocess.TimeoutExpired:
-            result["error"] = "ADB command timed out. Is the device responding?"
-            return result
-        except RuntimeError as e:
-            result["error"] = str(e)
-            return result
+        raw = text.strip()
 
         result["datetime_str"] = raw
 
@@ -348,16 +349,8 @@ class DeviceInfo:
             "error": None,
         }
 
-        try:
-            text = self._run_adb("dumpsys", "audio")
-        except FileNotFoundError:
-            result["error"] = "ADB not found. Ensure adb is installed and in your PATH."
-            return result
-        except subprocess.TimeoutExpired:
-            result["error"] = "ADB command timed out. Is the device responding?"
-            return result
-        except RuntimeError as e:
-            result["error"] = str(e)
+        text = self._safe_run_adb("dumpsys", "audio", result=result)
+        if text is None:
             return result
 
         # Parse ALL STREAM_* sections from dumpsys audio
@@ -434,16 +427,8 @@ class DeviceInfo:
             "error": None,
         }
         
-        try:
-            text = self._run_adb("dumpsys", "media_session")
-        except FileNotFoundError:
-            result["error"] = "ADB not found. Ensure adb is installed and in your PATH."
-            return result
-        except subprocess.TimeoutExpired:
-            result["error"] = "ADB command timed out. Is the device responding?"
-            return result
-        except RuntimeError as e:
-            result["error"] = str(e)
+        text = self._safe_run_adb("dumpsys", "media_session", result=result)
+        if text is None:
             return result
 
         # Get last played audio package (even if session is gone)
@@ -554,32 +539,19 @@ class DeviceInfo:
     def print_report(self):
         """Print device state in the exact format passed to the Judge VLM.
 
-        This mirrors the structure built by capture_device_info() in
-        jinju_gemini_manager.py so you can see exactly what the judge receives.
-        Assumes a single device (no jinju/companion split).
+        This mirrors the structure built by DeviceInfoMixin._capture_device_info()
+        so you can see exactly what the judge receives. Assumes a single device
+        (no jinju/companion split).
         """
         import json
-        from datetime import datetime
+        from agent_testers.device_managers.mixins.device_info import DeviceInfoMixin
 
         # --- Gather raw data ---
         battery = self.get_battery()
         dev_time = self.get_time()
         volume = self.get_volume()
         media = self.get_media()
-
-        # Parse date from datetime string (same logic as capture_device_info)
-        date_info = {}
-        if dev_time.get("datetime_str"):
-            try:
-                dt = datetime.strptime(dev_time["datetime_str"], "%a %b %d %H:%M:%S %Z %Y")
-                date_info = {
-                    "day": dt.day,
-                    "month": dt.strftime("%b"),
-                    "year": dt.year,
-                    "day_of_week": dt.strftime("%a"),
-                }
-            except Exception:
-                pass
+        date_info = DeviceInfoMixin._parse_date_from_time(dev_time)
 
         # --- Build the same dict structure the judge sees ---
         device_info = {

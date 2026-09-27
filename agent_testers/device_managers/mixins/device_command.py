@@ -8,7 +8,8 @@ Requires the host class to provide:
     - self.jinju_device: ADB serial of the Jinju glasses
     - self.companion_device: ADB serial of the companion phone
     - self.log_folder: Path to the log dump folder
-    - self._execute_app_tasks(): From AppTasksMixin
+    - self._run_app_tasks(): From AppTasksMixin
+    - self._parse_date_from_time(): From DeviceInfoMixin
 """
 
 from __future__ import annotations
@@ -26,7 +27,8 @@ class DeviceCommandMixin:
         - self.jinju_device
         - self.companion_device
         - self.log_folder
-        - self._execute_app_tasks() (from AppTasksMixin)
+        - self._run_app_tasks() (from AppTasksMixin)
+        - self._parse_date_from_time() (from DeviceInfoMixin)
     """
 
     def _execute_device_command(self, q_info, command_type, device_state):
@@ -99,20 +101,7 @@ class DeviceCommandMixin:
             print(f"Time info: {time_info}")
 
         elif action == "get_date":
-            time_info = device_info_util.get_time()
-            date_info = {}
-            if time_info.get("datetime_str"):
-                from datetime import datetime
-                try:
-                    dt = datetime.strptime(time_info["datetime_str"], "%a %b %d %H:%M:%S %Z %Y")
-                    date_info = {
-                        "day": dt.day,
-                        "month": dt.strftime("%b"),
-                        "year": dt.year,
-                        "day_of_week": dt.strftime("%a")
-                    }
-                except Exception:
-                    pass
+            date_info = self._parse_date_from_time(device_info_util.get_time())
             result["date"] = date_info
             print(f"Date info: {date_info}")
 
