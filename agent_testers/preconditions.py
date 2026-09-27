@@ -160,39 +160,17 @@ class PreconditionManager:
         return {"passed": False, "set": [], "checked": [], "failed": [reason], "skipped": None}
 
     def _force_stop_app_for_launch(self, app_key: str) -> None:
-        """Force-stop an app before launch to ensure clean state.
-        
-        Prevents false positives when the app is already running in background.
-        
-        Args:
-            app_key: The app key (e.g., 'samsungcalendar', 'samsungnotes')
-        """
-        from apps import APP_CONFIGS
-        from utils.adb_client import AdbClient
-        
-        # Find package_name from app_key by searching all groups
-        package_name = None
-        for group_config in APP_CONFIGS.values():
-            for feature_name, feature_config in group_config.items():
-                if isinstance(feature_config, dict) and feature_config.get("app_key") == app_key:
-                    package_name = feature_config.get("package_name")
-                    break
-            if package_name:
-                break
-        
-        if not package_name:
-            logger.warning(f"Could not find package_name for app_key='{app_key}'")
-            return
-        
-        # Get device_id from device manager
+        """Force-stop the app before a launch query so an already-running app can't pass."""
+        from apps import get_package_name
+
+        package_name = get_package_name(app_key)
         device_id = getattr(self.dm, "companion_device", None)
-        if not device_id:
-            logger.warning(f"No companion_device available for force-stop of {package_name}")
+        if not package_name or not device_id:
+            logger.warning(f"Skipping launch force-stop for app_key='{app_key}' (package={package_name}, device={device_id})")
             return
-        
+
         try:
-            adb = AdbClient()
-            adb.force_stop(device_id, package_name)
+            self.dm._adb.force_stop(device_id, package_name)
             logger.info(f"Force-stopped {package_name} for launch precondition (app_key={app_key})")
         except Exception as e:
             logger.warning(f"Failed to force-stop {package_name}: {e}")
