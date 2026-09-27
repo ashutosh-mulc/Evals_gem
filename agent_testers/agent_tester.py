@@ -28,6 +28,7 @@ import logging
 import os
 import shutil
 import sys
+from pathlib import Path
 import threading
 import time
 
@@ -225,6 +226,83 @@ class AgentTester:
         return payload
 
 
+    def _decode_inputs(self, question_info: dict):
+        """Create the per-query assets/q{eval_id}/ folder and decode the question's
+        image/audio from base64 into it.
+
+        question_info["metadata"] is mutated in place either way. On success returns
+        (query_dir, eval_id, encoded_image, audio_duration, response_filename,
+        response_path, qt). On an image decode failure returns None — metadata's
+        image_path/audio_raw_path/response_path are set to None so judge_worker
+        skips this question, and the caller should stop processing it.
+        """
+        eval_id = question_info["eval_id"].replace('q', '')
+
+        # Create per-query subfolder: assets/q{eval_id}/
+        query_dir = os.path.join(self.log_folders["fixed"], f"q{eval_id}")
+        os.makedirs(query_dir, exist_ok=True)
+
+        encoded_image = question_info["image"]
+        question_info["metadata"]["image_path"] = os.path.join(query_dir, f"image_{eval_id}.png")
+        try:
+            Base64Converter.decode_to_file(encoded_image, question_info["metadata"]["image_path"])
+        except Exception as e:
+            print(f"Warning: Failed to decode image for {eval_id}: {e} — skipping this question.")
+            question_info["metadata"]["image_path"] = None
+            question_info["metadata"]["audio_raw_path"] = None
+            question_info["metadata"]["response_path"] = None
+            return None
+
+        encoded_audio = question_info["audio"]
+        audio_duration = float(question_info["audio_duration"])
+        question_info["metadata"]["audio_raw_path"] = os.path.join(query_dir, f"audio_{eval_id}.wav")
+        Base64Converter.decode_to_file(encoded_audio, question_info["metadata"]["audio_raw_path"])
+
+        response_filename = f"response_{eval_id}.mp3"
+        response_path = os.path.join(query_dir, response_filename)
+
+        qt = QuestionType.parse(question_info.get("question_type", ""))
+
+        return query_dir, eval_id, encoded_image, audio_duration, response_filename, response_path, qt
+
+    def _move_tmp_artifacts(self, query_dir: str, eval_id: str) -> dict:
+        """Move every file dumped into log_folders["tmp"] during this query into
+        assets/q{eval_id}/, suffixing filenames with the eval_id (skipped if already
+        present) and preserving subdirectory structure.
+
+        Returns {metadata_key: new_path} for each moved file — metadata_key is
+        derived from the file's ORIGINAL stem (without the eval_id suffix) so
+        downstream consumers (e.g. "jinju_log_path") stay stable, e.g.
+        "screenshot.png" in a "assets/" subdir -> "assets_screenshot_path".
+        """
+        tmp_dir = Path(self.log_folders["tmp"])
+        query_dst = Path(query_dir)
+        updates = {}
+
+        for root, dirs, files in os.walk(tmp_dir):
+            for file in files:
+                src_path = Path(root) / file
+                # Calculate relative path from tmp_dir to preserve directory structure
+                rel_path = src_path.relative_to(tmp_dir)
+
+                # Create destination directory structure within query folder
+                dst_dir = query_dst / rel_path.parent
+                dst_dir.mkdir(parents=True, exist_ok=True)
+                # Suffix filename with eval_id (skip if already present)
+                file_stem, file_ext = os.path.splitext(file)
+                if eval_id not in file_stem:
+                    file_stem = f"{file_stem}_{eval_id}"
+                dst_path = dst_dir / f"{file_stem}{file_ext}"
+                # Move file
+                shutil.move(str(src_path), str(dst_path))
+                # Store metadata path - use relative path components for key
+                orig_stem, _ = os.path.splitext(file)
+                path_key_parts = list(rel_path.parent.parts) + [orig_stem]
+                metadata_key = "_".join(path_key_parts) + "_path"
+                updates[metadata_key] = str(dst_path)
+
+        return updates
+
     def execute(self, question_info: str) -> dict:
         """Execute a single evaluation query.
 
@@ -263,36 +341,13 @@ class AgentTester:
         self.arap_recorder.start_arap()
 
         ## Decode question data
-        
         question_info = json.loads(question_info)
         question_info["metadata"] = {}
 
-        eval_id = question_info["eval_id"].replace('q', '')
-
-        # Create per-query subfolder: assets/q{eval_id}/
-        query_dir = os.path.join(self.log_folders["fixed"], f"q{eval_id}")
-        os.makedirs(query_dir, exist_ok=True)
-
-        encoded_image = question_info["image"]
-        question_info["metadata"]["image_path"] = os.path.join(query_dir, f"image_{eval_id}.png")
-        try:
-            Base64Converter.decode_to_file(encoded_image, question_info["metadata"]["image_path"])
-        except Exception as e:
-            print(f"Warning: Failed to decode image for {eval_id}: {e} — skipping this question.")
-            question_info["metadata"]["image_path"] = None
-            question_info["metadata"]["audio_raw_path"] = None
-            question_info["metadata"]["response_path"] = None
-            return question_info
-
-        encoded_audio = question_info["audio"]
-        audio_duration = float(question_info["audio_duration"])
-        question_info["metadata"]["audio_raw_path"] = os.path.join(query_dir, f"audio_{eval_id}.wav")
-        Base64Converter.decode_to_file(encoded_audio, question_info["metadata"]["audio_raw_path"])
-        
-        response_filename = f"response_{eval_id}.mp3"            
-        response_path = os.path.join(query_dir, response_filename)
-        
-        qt = QuestionType.parse(question_info.get("question_type", ""))
+        decoded = self._decode_inputs(question_info)
+        if decoded is None:
+            return question_info  # image decode failed — metadata already marked None, skip this question
+        query_dir, eval_id, encoded_image, audio_duration, response_filename, response_path, qt = decoded
 
         
         ## TODO: For app evaluation we can remove the blank images from the dataset
@@ -402,34 +457,7 @@ class AgentTester:
             # q00001/jinju_log_q00001.txt) so every artifact keeps the eval id
             # in its filename. Files that already carry the eval_id (e.g.
             # device_info_pre_q00001.json) are not suffixed again.
-            from pathlib import Path
-            tmp_dir = Path(self.log_folders["tmp"])
-            query_dst = Path(query_dir)
-            
-            for root, dirs, files in os.walk(tmp_dir):
-                for file in files:
-                    src_path = Path(root) / file
-                    # Calculate relative path from tmp_dir to preserve directory structure
-                    rel_path = src_path.relative_to(tmp_dir)
-                   
-                    # Create destination directory structure within query folder
-                    dst_dir = query_dst / rel_path.parent
-                    dst_dir.mkdir(parents=True, exist_ok=True)
-                    # Suffix filename with eval_id (skip if already present)
-                    file_stem, file_ext = os.path.splitext(file)
-                    if eval_id not in file_stem:
-                        file_stem = f"{file_stem}_{eval_id}"
-                    dst_path = dst_dir / f"{file_stem}{file_ext}"
-                    # Move file
-                    shutil.move(str(src_path), str(dst_path))
-                    # Store metadata path - use relative path components for key
-                    # Key is derived from the ORIGINAL stem (without eval_id) so
-                    # downstream consumers (e.g. jinju_log_path) stay stable
-                    # e.g., "screenshot.png" -> "screenshot_path"
-                    orig_stem, _ = os.path.splitext(file)
-                    path_key_parts = list(rel_path.parent.parts) + [orig_stem]
-                    metadata_key = "_".join(path_key_parts) + "_path"
-                    question_info["metadata"][metadata_key] = str(dst_path)
+            question_info["metadata"].update(self._move_tmp_artifacts(query_dir, eval_id))
 
         time.sleep(5)
 
