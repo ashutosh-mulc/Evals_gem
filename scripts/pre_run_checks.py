@@ -39,6 +39,8 @@ import requests
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
+from agent_testers.device_managers import DEVICE_MANAGERS
+
 
 # ── ANSI colors ──────────────────────────────────────────────────────
 GREEN = "\033[92m"
@@ -337,13 +339,7 @@ def check_judge_model(url):
 
 
 # ── Known device manager types ────────────────────────────────────────
-VALID_DEVICE_MANAGER_TYPES = {
-    "s25-gemini-live",
-    "s25-gpt-live",
-    "s25-gemini-upload",
-    "jinju-gemini",
-    "meta-live",
-}
+VALID_DEVICE_MANAGER_TYPES = set(DEVICE_MANAGERS)
 
 
 def _diagnose_dataset_path(dataset_file):

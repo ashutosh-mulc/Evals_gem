@@ -28,22 +28,12 @@ import time
 from datetime import datetime
 from typing import Any, Callable
 
+from agent_testers.device_managers import DEVICE_MANAGERS
+
 # ── Module-level state ──────────────────────────────────────────────
 
 _trace_dir: str | None = None
 _current_eval_id: str | None = None
-
-# Device manager type → module path mapping (mirrors agent_tester.py)
-_DM_TYPE_TO_MODULE = {
-    "dummy-device-manager": "agent_testers.device_managers.dummy_device_manager",
-    "jinju-gemini": "agent_testers.device_managers.jinju_gemini_manager",
-    "s25-gemini-live": "agent_testers.device_managers.s25_gemini_live_manager",
-    "s25-gemini-upload": "agent_testers.device_managers.s25_gemini_upload_manager",
-    "s25-gpt-live": "agent_testers.device_managers.s25_gpt_live_manager",
-    "s25-claude-live": "agent_testers.device_managers.s25_claude_live_manager",
-    "meta-live": "agent_testers.device_managers.meta_live_manager",
-}
-
 
 # ── Helpers ─────────────────────────────────────────────────────────
 
@@ -163,7 +153,7 @@ def _make_wrapper(original, component, step_name, extract_inputs=None, extract_o
 def _patch_agent_tester_side(config: dict) -> None:
     """Patch DeviceManager, ARAPManager, PreconditionManager, DisplayServer."""
     dm_type = config["device_manager_type"]
-    dm_module_path = _DM_TYPE_TO_MODULE.get(dm_type)
+    dm_module_path = DEVICE_MANAGERS.get(dm_type)
     if not dm_module_path:
         return
 

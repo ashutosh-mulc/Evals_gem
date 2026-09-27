@@ -1,47 +1,8 @@
-"""
-Device Managers Package — Common imports and base classes.
+"""Device managers: one module per supported `device_manager_type` config value."""
 
-This module provides shared imports and the base DeviceManagerTemplate class
-for all device manager implementations.
-
-Usage:
-    from agent_testers.device_managers import (
-        DeviceManagerTemplate,
-        AdbClient,
-        logging,
-        os,
-        shutil,
-        subprocess,
-        time,
-    )
-"""
-
-from __future__ import annotations
-
-# Re-export base class
-from agent_testers.device_managers.device_manager import DeviceManagerTemplate
-
-# Re-export commonly used utilities
-from utils.adb_client import AdbClient
-
-# Re-export standard library modules commonly used
-import logging
-import os
-import shutil
-import signal
-import subprocess
-import time
-
-__all__ = [
-    # Base class
-    "DeviceManagerTemplate",
-    # Utilities
-    "AdbClient",
-    # Standard library (for convenience in manager files)
-    "logging",
-    "os",
-    "shutil",
-    "signal",
-    "subprocess",
-    "time",
-]
+# config "device_manager_type" → module that defines `DeviceManager`
+DEVICE_MANAGERS = {
+    "dummy-device-manager": "agent_testers.device_managers.dummy_device_manager",
+    "jinju-gemini": "agent_testers.device_managers.jinju_gemini_manager",
+    "s25-gemini-live": "agent_testers.device_managers.s25_gemini_live_manager",
+}

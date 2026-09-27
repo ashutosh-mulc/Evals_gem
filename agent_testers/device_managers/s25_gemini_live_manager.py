@@ -1,8 +1,6 @@
 from agent_testers.device_managers.device_manager import DeviceManagerTemplate
 from agent_testers.device_managers.mixins.app_tasks import AppTasksMixin
 from agent_testers.device_managers.mixins.state_collect import StateCollectMixin
-from agent_testers.device_managers.calendar_ui_tree.calendar_interaction import CalendarInteraction
-from apps import APP_CONFIGS
 from utils.adb_client import AdbClient
 import subprocess, os, shutil, time, signal
 

@@ -17,7 +17,7 @@ Process Role:
 
 Device Manager Pattern:
     Supports multiple device configurations via pluggable DeviceManager
-    classes (jinju-gemini, s25-gemini-live, meta-live, etc.).
+    classes (see agent_testers.device_managers.DEVICE_MANAGERS).
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ import time
 
 from agent_testers.arap_manager import ARAPManager
 from agent_testers.consent_player import play_consent
+from agent_testers.device_managers import DEVICE_MANAGERS
 from agent_testers.conversation import SESSION_END_S, LogcatEvents, run_conversation
 from agent_testers.preconditions import PreconditionManager
 from agent_testers.robopod_manager import RobopodManager
@@ -77,19 +78,7 @@ class AgentTester:
         self.tc_excecuted = 0
         self.stop_process = False
 
-        # import correct DeviceManager module
-        device_manager_type_to_module  = {
-            "dummy-device-manager": "agent_testers.device_managers.dummy_device_manager",
-            "jinju-gemini": "agent_testers.device_managers.jinju_gemini_manager",
-            "s25-gemini-live": "agent_testers.device_managers.s25_gemini_live_manager",
-            "s25-gemini-upload": "agent_testers.device_managers.s25_gemini_upload_manager",
-            "s25-gpt-live": "agent_testers.device_managers.s25_gpt_live_manager",
-            "s25-claude-live": "agent_testers.device_managers.s25_claude_live_manager",
-            "meta-live": "agent_testers.device_managers.meta_live_manager"
-        }
-
-        device_manager_type = self.config["device_manager_type"]
-        device_manager_module = importlib.import_module(device_manager_type_to_module[device_manager_type])
+        device_manager_module = importlib.import_module(DEVICE_MANAGERS[self.config["device_manager_type"]])
         DeviceManager = device_manager_module.DeviceManager
 
         #define DeviceManager args
