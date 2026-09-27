@@ -6,6 +6,7 @@ from judge_worker.response_scorer import ResponseScorer
 from utils.file_utils import *
 from utils.message_transport import MessagePipes
 from common.message import *
+from common.logging_config import setup_logging
 
 class JudgeWorker:
     def __init__(self, config_path: str):
@@ -29,28 +30,7 @@ class JudgeWorker:
                                     "wait_time": config["message_service"]["wait_time"]
                                     }
         
-        #logger setup
-        logging_config = config["logger"]
-        
-        logging_level = logging.DEBUG
-        match(logging_config["logger_level"]):
-            case "debug":
-                logger_level = logging.DEBUG
-            case "info":
-                logger_level = logging.INFO
-            case "warning":
-                logger_level = logging.WARNING
-            case "error":
-                logger_level = logging.ERROR
-            case "critical":
-                logger_level = logging.CRITICAL
-            case _:
-                logger_level = logging.DEBUG
-        logging.basicConfig(
-            level = logging_level,
-            filename = os.path.join(config["paths"]["root_folder"], "judge_worker.log"),
-            format = '%(asctime)s\t%(levelname)s\t%(module)s\t%(process)s\t%(thread)s\t%(message)s'
-        )
+        setup_logging(config["logger"]["logger_level"], os.path.join(config["paths"]["root_folder"], "judge_worker.log"))
 
     def send_message(self, eval_id: str, payload: str, current_status: str):
         msg = Message(
@@ -78,17 +58,17 @@ class JudgeWorker:
             payload = ""; eval_id = ""
             match(current_status):
                 case "READY":
-                    print("Judge worker is ready!"); logging.info("Judge worker is ready!")
+                    logging.info("Judge worker is ready!")
 
                 case "WAIT":
                     time.sleep(self.message_service_config["wait_time"])
 
                 case "WORK":
-                    print("----WORKING----"); logging.info("----WORKING----")
+                    logging.info("----WORKING----")
                     response, result_meta = self.response_scorer.get_judge_score(query_data)
                     eval_id = result_meta["eval_id"]
                     payload = response + "<meta_start>" + json.dumps(result_meta) + "<meta_end>"
-                    print(f"----Completed analysis for {eval_id}----"); logging.info(f"----Completed analysis for {eval_id}----")
+                    logging.info(f"----Completed analysis for {eval_id}----")
 
                 case "STOP":
                     stop_process = False

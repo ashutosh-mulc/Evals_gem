@@ -36,6 +36,7 @@ from agent_testers.consent_player import play_consent
 from agent_testers.conversation import SESSION_END_S, LogcatEvents, run_conversation
 from agent_testers.preconditions import PreconditionManager
 from agent_testers.robopod_manager import RobopodManager
+from common.logging_config import setup_logging
 from common.message import Message
 from common.question_type import QuestionType
 from services.host.display_server import DisplayServer
@@ -104,29 +105,7 @@ class AgentTester:
             os.makedirs(self.log_folders[log_folder_type], exist_ok = True)
         dm_args.append(self.log_folders["tmp"])
         dm_args.append(self.config)  # pass full config; each device manager extracts what it needs
-        #logger setup
-        logging_config = self.config["logger"]
-        
-        logging_level = logging.DEBUG
-        match(logging_config["logger_level"]):
-            case "debug":
-                logger_level = logging.DEBUG
-            case "info":
-                logger_level = logging.INFO
-            case "warning":
-                logger_level = logging.WARNING
-            case "error":
-                logger_level = logging.ERROR
-            case "critical":
-                logger_level = logging.CRITICAL
-            case _:
-                logger_level = logging.DEBUG
-                
-        logging.basicConfig(
-            level = logging_level,
-            filename = os.path.join(self.config["paths"]["root_folder"], "agent_tester.log"),
-            format = '%(asctime)s\t%(levelname)s\t%(module)s\t%(process)s\t%(thread)s\t%(message)s'
-        )
+        setup_logging(self.config["logger"]["logger_level"], os.path.join(self.log_root, "agent_tester.log"))
 
         self.device_manager = DeviceManager(*dm_args)
 
@@ -184,7 +163,7 @@ class AgentTester:
         #host the display service
         display_port = self.config["urls"]["display_port"]
         self.display_server = DisplayServer()
-        print(f"DISPLAY SERVER hosted on port: {display_port}"); logging.info(f"DISPLAY SERVER hosted on port: {display_port}")
+        logging.info(f"DISPLAY SERVER hosted on port: {display_port}")
         self.display_server_thread = threading.Thread(target = self.display_server.get_app().run, kwargs = {"host": "0.0.0.0", "port": int(display_port)}, daemon = True)
     
     def display_image(self, encoded_image: str) -> None:
@@ -202,7 +181,7 @@ class AgentTester:
             Consider optimizing to avoid flicker.
         """
         #TODO: Stop showing the previous image and start showing the current image
-        print("Waiting for image to be updated on display monitor!"); logging.info("Waiting for image to be updated on display monitor!")
+        logging.info("Waiting for image to be updated on display monitor!")
         self.display_server.set_image_status(None, "stop")
         time.sleep(1)
         self.display_server.set_image_status(encoded_image, "show")
@@ -234,9 +213,9 @@ class AgentTester:
         )
 
         msg_bytes = json.dumps(msg.get_json()).encode()
-        print("Sent Request."); logging.debug(f"Sent Request: {msg_bytes}")
+        logging.debug(f"Sent request: {msg_bytes}")
         response_bytes = self.message_service.request(payload = msg_bytes, timeout = 10)
-        print("Received response."); logging.debug(f"Sent Request: {response_bytes}")
+        logging.debug(f"Received response: {response_bytes}")
         
         response = json.loads(response_bytes.decode())
         Message.check_response(msg.msg_id, "coordinator", response)
@@ -565,7 +544,6 @@ class AgentTester:
 
             match(current_status):
                 case "READY":
-                    print("Agent tester is ready!")
                     logging.info("Agent tester is ready!")
 
                 case "WAIT":
@@ -574,7 +552,6 @@ class AgentTester:
                 case "WORK":
                     evaluation_info = self.execute(question)
                     payload = self.create_payload(evaluation_info)
-                    print("------Submitting for Evaluation-------")
                     logging.info("------Submitting for Evaluation-------")
 
                 case "STOP":

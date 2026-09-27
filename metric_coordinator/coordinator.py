@@ -9,6 +9,7 @@ import logging
 from utils.file_utils import *
 from utils.message_transport import MessagePipes
 from common.message import *
+from common.logging_config import setup_logging
 from metric_coordinator.db_manager import DBManager
 
 class MetricCoordinator:
@@ -25,28 +26,7 @@ class MetricCoordinator:
         queue_path = config["paths"]["queue_file"]
         self.db_manager = DBManager(db_backup_folder, queue_path)
 
-        #logger setup
-        logging_config = config["logger"]
-        
-        logging_level = logging.DEBUG
-        match(logging_config["logger_level"]):
-            case "debug":
-                logger_level = logging.DEBUG
-            case "info":
-                logger_level = logging.INFO
-            case "warning":
-                logger_level = logging.WARNING
-            case "error":
-                logger_level = logging.ERROR
-            case "critical":
-                logger_level = logging.CRITICAL
-            case _:
-                logger_level = logging.DEBUG
-        logging.basicConfig(
-            level = logging_level,
-            filename = os.path.join(config["paths"]["root_folder"], "coordinator.log"),
-            format = '%(asctime)s\t%(levelname)s\t%(module)s\t%(process)s\t%(thread)s\t%(message)s'
-        )
+        setup_logging(config["logger"]["logger_level"], os.path.join(config["paths"]["root_folder"], "coordinator.log"))
 
         #setup message_service
         self.message_services = {
@@ -79,7 +59,7 @@ class MetricCoordinator:
             try:            
                 encoded_msg = self.message_services["agent_tester"].recv()
             except BrokenPipeError:
-                print("ERROR: agent_tester client died! FIX IT! WAITING!"); logging.error("ERROR: agent_tester client died! FIX IT! WAITING!")
+                logging.error("ERROR: agent_tester client died! FIX IT! WAITING!")
                 self.message_services["agent_tester"].reinit_fd(write_first = True)
                 continue
 
@@ -88,7 +68,7 @@ class MetricCoordinator:
             last_msg_recieved = int(time.time())
 
             if msg["msg_type"] == "REQUEST":
-                print("Received msg from agent_tester");logging.info("Received msg from agent_tester")
+                logging.info("Received msg from agent_tester")
 
                 current_process_status = msg["status"]
                 match(current_process_status):
@@ -106,13 +86,13 @@ class MetricCoordinator:
                 response = wait_response
                 try: 
                     response = self.message_queues["tester_response"].get_nowait() #consumer
-                    print("----ASSIGNING TASK TO TESTER----"); logging.info("----ASSIGNING TASK TO TESTER----")
+                    logging.info("----ASSIGNING TASK TO TESTER----")
                 except queue.Empty:
-                    print("----ASKING TESTER TO WAIT----"); logging.info("----ASSIGNING TASK TO TESTER----")
+                    logging.info("----ASKING TESTER TO WAIT----")
                 
                 response.msg_id = msg["msg_id"]
                 if response.status == "STOP":
-                    print("----STOPPING AGENT TESTER----"); logging.info("----STOPPING AGENT TESTER----")
+                    logging.info("----STOPPING AGENT TESTER----")
                     stop_service = True
                 
                 try:
@@ -120,7 +100,7 @@ class MetricCoordinator:
                         payload = json.dumps(response.get_json()).encode()
                     )
                 except BrokenPipeError:
-                    print("ERROR: agent_tester client died! FIX IT!"); logging.error("ERROR: agent_tester client died! FIX IT!")
+                    logging.error("ERROR: agent_tester client died! FIX IT!")
                     self.message_services["agent_tester"].reinit_fd(write_first = True)
                 # print("Replied to agent_tester", json.dumps(response.get_json()))
             else:
@@ -141,7 +121,7 @@ class MetricCoordinator:
                 # pass
                 encoded_msg = self.message_services["judge_worker"].recv()
             except BrokenPipeError:
-                print("ERROR: judge_worker client died! FIX IT! WAITING!"); logging.error("ERROR: judge_worker client died! FIX IT! WAITING!")
+                logging.error("ERROR: judge_worker client died! FIX IT! WAITING!")
                 self.message_services["judge_worker"].reinit_fd(write_first = True)
                 continue
             
@@ -151,7 +131,7 @@ class MetricCoordinator:
             last_msg_recieved = int(time.time())
 
             if msg["msg_type"] == "REQUEST":
-                print("Received msg from judge_worker"); logging.info("Received msg from judge_worker")
+                logging.info("Received msg from judge_worker")
 
                 current_process_status = msg["status"]
                 match(current_process_status):
@@ -169,13 +149,13 @@ class MetricCoordinator:
                 response = wait_response
                 try: 
                     response = self.message_queues["judge_response"].get_nowait() #consumer
-                    print("----ASSIGNING TASK TO JUDGE----"); logging.info("----ASSIGNING TASK TO JUDGE----"); 
+                    logging.info("----ASSIGNING TASK TO JUDGE----")
                 except queue.Empty:
-                    print("----ASKING JUDGE TO WAIT----"); logging.info("----ASKING JUDGE TO WAIT----")
+                    logging.info("----ASKING JUDGE TO WAIT----")
                 
                 response.msg_id = msg["msg_id"]
                 if response.status == "STOP":
-                    print("----STOPPING JUDGE WORKER----"); logging.info("----STOPPING JUDGE WORKER----")
+                    logging.info("----STOPPING JUDGE WORKER----")
                     stop_service = True
                 
                 try:
@@ -183,7 +163,7 @@ class MetricCoordinator:
                         payload = json.dumps(response.get_json()).encode()
                     )
                 except BrokenPipeError:
-                    print("ERROR: judge_worker client died! FIX IT! WAITING!"); logging.error("----STOPPING JUDGE WORKER----")
+                    logging.error("ERROR: judge_worker client died! FIX IT! WAITING!")
                     self.message_services["judge_worker"].reinit_fd(write_first = True)
             else:
                 raise NotImplementedError

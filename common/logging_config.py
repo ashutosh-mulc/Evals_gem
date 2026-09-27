@@ -1,11 +1,8 @@
 """
-Unified logging setup for MAIRE.
-
-Replaces the duplicated logging.basicConfig blocks in coordinator.py,
-agent_tester.py, and judge_worker.py with a single function.
+Unified logging setup for the MAIRE processes (coordinator, agent_tester, judge_worker).
 
 Usage:
-    from config.logging_config import setup_logging
+    from common.logging_config import setup_logging
 
     setup_logging(level="debug", log_file="/path/to/component.log")
 """
@@ -28,28 +25,23 @@ _LEVEL_MAP = {
 }
 
 
-def setup_logging(
-    level: str = "debug",
-    log_file: str | None = None,
-    fmt: str = LOG_FORMAT,
-) -> None:
+def setup_logging(level: str = "debug", log_file: str | None = None) -> None:
     """
     Configure logging for a MAIRE component.
 
+    The log file gets everything at ``level``. The console gets INFO and above
+    only, so debug payload dumps (base64 audio etc.) stay out of the terminal.
+
     Args:
         level: Log level string (e.g. "debug", "info"). Empty string = debug.
-        log_file: If provided, also log to this file. Otherwise console only.
-        fmt: Log format string.
+        log_file: If provided, also log to this file.
     """
     log_level = _LEVEL_MAP.get(level.lower(), logging.DEBUG)
 
-    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+    console = logging.StreamHandler(sys.stdout)
+    console.setLevel(max(log_level, logging.INFO))
+    handlers: list[logging.Handler] = [console]
     if log_file:
         handlers.append(logging.FileHandler(log_file))
 
-    logging.basicConfig(
-        level=log_level,
-        format=fmt,
-        handlers=handlers,
-        force=True,  # Override any prior config
-    )
+    logging.basicConfig(level=log_level, format=LOG_FORMAT, handlers=handlers, force=True)
