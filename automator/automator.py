@@ -291,7 +291,6 @@ class EvaluationAutomator:
 
         eval_folder_name = f"eval_set_{round_num}"
         eval_folder_path = os.path.join(self.config_baseline["paths"]["root_folder"], eval_folder_name)
-        os.makedirs(eval_folder_path, exist_ok = is_reeval_mode) # eval folder is not supposed to exist
         dataset_name = self.config_baseline["paths"]["dataset_file"].split("/")[-1]
         dataset_size = 0
 
@@ -346,6 +345,7 @@ class EvaluationAutomator:
             _, original_dataset = JSONLFileManager.load_file(self.config_baseline["paths"]["dataset_file"])
             filtered_dataset = [original_dataset[idx] for idx in reeval_indices if idx < len(original_dataset)]
 
+            os.makedirs(eval_folder_path, exist_ok=True)
             JSONLFileManager.dump_file(original_header, filtered_dataset, os.path.join(eval_folder_path, dataset_name))
             dataset_size = len(filtered_dataset)
             new_config["dataset_start_index"] = 0
@@ -601,7 +601,7 @@ class PostProcessAutomator:
         Generates:
           - summary_report.txt — Text summary of all metrics
           - {eval_type}_category_wise.png — Bar chart by question_type
-          - {eval_type}_bad_iterations.png — Bar chart of failures by round
+          - bad_iterations.png — Bar chart of failures by round, per eval_type
         """
         _, report =  JSONLFileManager.load_file(os.path.join(self.root_folder_path, "vqa_report.jsonl"))
         #Summary Report
@@ -695,7 +695,7 @@ class PostProcessAutomator:
             for container in ax.containers:
                 ax.bar_label(container, padding=3)
             plt.tight_layout()
-            plt.savefig(os.path.join(self.root_folder_path, f"{eval_type}_bad_iterations.png"), dpi=300, bbox_inches='tight')
+            plt.savefig(os.path.join(self.root_folder_path, "bad_iterations.png"), dpi=300, bbox_inches='tight')
         else:
             print("NO BAD RESPONSES! HENCE NO BAR PLOT!")
 
