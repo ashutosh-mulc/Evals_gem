@@ -72,7 +72,7 @@ class DeviceInfoMixin:
         DeviceInfoApp (secure ADB, list-args) when a state collector is configured,
         else fall back to the same plain-ADB path.
         """
-        from agent_testers.device_managers.device_config import DeviceInfo
+        from agent_testers.device_managers.adb_device_info import DeviceInfo
 
         jinju_di = DeviceInfo(device=self.jinju_device)
         battery_info = jinju_di.get_battery()

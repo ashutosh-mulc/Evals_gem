@@ -227,7 +227,7 @@ class DeviceManager(
             device_id: ADB device serial.
             volume_pct: Percentage of each stream's max range (0-100). Default 80%.
         """
-        from agent_testers.device_managers.device_config import DeviceInfo
+        from agent_testers.device_managers.adb_device_info import DeviceInfo
 
         di = DeviceInfo(device=device_id)
         vol_state = di.get_volume()

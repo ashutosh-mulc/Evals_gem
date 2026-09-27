@@ -19,6 +19,20 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Maps device command types to their actions and target devices.
+# Used for DEVICE_<STATE>_<COMMAND_TYPE> question types.
+DEVICE_COMMAND_TYPES = {
+    "camera": {"action": "capture_image", "device": "jinju", "description": "Capture an image"},
+    "video": {"action": "capture_video", "device": "jinju", "description": "Record a video"},
+    "volume": {"action": "get_volume", "device": "jinju", "description": "Get/set volume level"},
+    "mediacontrol": {"action": "get_media", "device": "companion", "description": "Media playback control"},
+    "dnd": {"action": "get_dnd_mode", "device": "companion", "description": "Do Not Disturb mode"},
+    "battery": {"action": "get_battery", "device": "jinju", "description": "Battery status"},
+    "time": {"action": "get_time", "device": "jinju", "description": "Device time"},
+    "date": {"action": "get_date", "device": "jinju", "description": "Device date"},
+    "notification": {"action": "capture_notifications_screenshot", "device": "companion", "description": "Capture notification panel screenshot"},
+}
+
 
 class DeviceCommandMixin:
     """Mixin for executing device-specific commands (volume, camera, DND, etc.).
@@ -39,7 +53,7 @@ class DeviceCommandMixin:
             command_type: Type of command (camera, volume, mediacontrol, dnd, battery, time, date)
             device_state: Device state (online, offline, disconnected)
         """
-        from agent_testers.device_managers.device_config import DeviceInfo, DEVICE_COMMAND_TYPES
+        from agent_testers.device_managers.adb_device_info import DeviceInfo
         from apps import APP_CONFIGS
 
         print(f"Executing device command: {command_type} (state: {device_state})")

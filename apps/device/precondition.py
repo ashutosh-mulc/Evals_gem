@@ -127,7 +127,7 @@ def _set_volume_on_device(device, direction):
     Returns:
         List of human-readable action strings (one per stream set).
     """
-    from agent_testers.device_managers.device_config import DeviceInfo
+    from agent_testers.device_managers.adb_device_info import DeviceInfo
 
     di = DeviceInfo(device=device)
     vol_state = di.get_volume()
@@ -206,7 +206,7 @@ def _setup_volume(dm, action):
         time.sleep(1)
 
         # Verify via DeviceInfo on both devices
-        from agent_testers.device_managers.device_config import DeviceInfo
+        from agent_testers.device_managers.adb_device_info import DeviceInfo
         checked = []
 
         jinju_di = DeviceInfo(device=jinju_device)
