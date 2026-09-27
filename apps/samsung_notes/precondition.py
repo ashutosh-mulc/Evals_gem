@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 
-from ..precondition_helpers import extract_title_from_gt, extract_content_from_gt, report
+from ..precondition_helpers import extract_title_from_gt, extract_description_from_gt, report
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ def setup(dm, sc, qt, question, gt_answer):
             failed=[f"Could not extract note title from gt_answer: '{gt_answer}'"],
         )
 
-    content = extract_content_from_gt(gt_answer)
+    content = extract_description_from_gt(gt_answer)
 
     # Create the note via XRClaw (use dm directly or via state collector)
     xrclaw_dm = getattr(sc, "_dm", None) or dm

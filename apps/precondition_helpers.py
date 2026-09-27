@@ -39,8 +39,10 @@ def extract_title_from_gt(gt_answer: str) -> Optional[str]:
     return None
 
 
-def extract_content_from_gt(gt_answer: str) -> str:
-    """Extract content from a gt_answer string.
+def extract_description_from_gt(gt_answer: str) -> str:
+    """Extract a description/content field from a gt_answer string, for building
+    the item a precondition creates (distinct from apps.helpers.extract_content_from_gt,
+    which extracts content for verify()-time comparison against actual state).
 
     Handles: "with content 'milk and eggs'" or "with description '...'"
     """
