@@ -8,7 +8,7 @@ Requires the host class to provide:
     - self.jinju_device: ADB serial of the Jinju glasses
     - self.companion_device: ADB serial of the companion phone
     - self.log_folder: Path to the log dump folder
-    - self.xrclaw_collector: StateCollector instance or None (backward-compat alias)
+    - self.state_collector: StateCollector instance or None
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ class DeviceInfoMixin:
         - self.jinju_device
         - self.companion_device
         - self.log_folder
-        - self.xrclaw_collector (or self.state_collector)
+        - self.state_collector
     """
 
     def capture_device_info(self, q_info, capture_type="post", device_state=None):
@@ -52,8 +52,7 @@ class DeviceInfoMixin:
             f"Device {self.companion_device} NOT online!"
 
         # --- Use XRClaw DeviceInfoApp if available ---
-        collector = getattr(self, "xrclaw_collector", None) or getattr(self, "state_collector", None)
-        if collector is not None and getattr(collector, "_dm", None) is not None:
+        if self.state_collector is not None:
             device_info = self._capture_device_info_xrclaw()
         else:
             device_info = self._capture_device_info_legacy()

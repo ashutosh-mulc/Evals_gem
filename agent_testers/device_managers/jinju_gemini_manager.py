@@ -29,8 +29,6 @@ class DeviceManager(
         self.arap_speaker = None
         self.log_procs = []
         self.log_folder = log_dump_folder; self.log_extra = {}
-        self.state_collector = None
-        self.xrclaw_collector = None  # backward-compat alias
         self._adb = AdbClient()
 
         print(f"Make sure {self.companion_device} and {self.jinju_device} are rooted devices!")

@@ -186,6 +186,10 @@ def filter_holidays(events) -> list:
 
 # ── Result builders ───────────────────────────────────────────────
 
+# `method` values meaning the collector actually verified the app state
+VERIFIED_METHODS = {"xrclaw", "xrclaw_read"}
+
+
 def result(app_name, verified, rating, analysis, actual_state, expected) -> dict:
     """Build a successful state collector verification result."""
     return {

@@ -8,8 +8,7 @@ across managers.
 Requires the host class to provide:
     - self.companion_device: ADB serial of the companion phone
     - self.log_folder: Path to the log dump folder
-    - self.xrclaw_collector (or self.state_collector): StateCollector or None
-    - self._xrclaw_collect_state() / _collect_state(): From StateCollectMixin
+    - self._collect_state(): From StateCollectMixin
     - self._pull_screenshot(): From AppTasksMixin
     - self._execute_app_tasks(): From AppTasksMixin
     - self.capture_device_info(): From DeviceInfoMixin
@@ -31,7 +30,6 @@ class AppMetaInfoMixin:
     Host class must provide:
         - self.companion_device
         - self.log_folder
-        - self.xrclaw_collector (or self.state_collector)
         - self._collect_state() (from StateCollectMixin)
         - self._pull_screenshot() (from AppTasksMixin)
         - self._execute_app_tasks() (from AppTasksMixin)
@@ -155,10 +153,7 @@ class AppMetaInfoMixin:
                 traceback.print_exc()
             
             # XRClaw verification
-            collect_fn = getattr(self, "_collect_state", None)
-            collector = getattr(self, "xrclaw_collector", None) or getattr(self, "state_collector", None)
-            if collect_fn and collector:
-                collect_fn(collector, q_info)
+            self._collect_state(q_info)
 
             # Execute app tasks from config.py (open_activity + screenshot) for
             # device queries so the post-state screenshot shows the relevant UI
@@ -191,11 +186,7 @@ class AppMetaInfoMixin:
         self.capture_device_info(q_info)
 
         # XRClaw verification (if available)
-        collect_fn = getattr(self, "_collect_state", None)
-        collector = getattr(self, "xrclaw_collector", None) or getattr(self, "state_collector", None)
-        if collect_fn and collector:
-            collect_fn(collector, q_info)
-            print(f"----XRClaw verification completed for {qt.app_key}----")
+        self._collect_state(q_info)
 
         # Execute app tasks and capture screenshot
         group_config = APP_CONFIGS.get(qt.group, {})

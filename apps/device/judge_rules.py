@@ -127,7 +127,7 @@ def handle_date(question: str, ai_response: str, metadata: dict) -> Tuple[int, s
 def handle_battery(question: str, ai_response: str, metadata: dict) -> Tuple[int, str]:
     """Evaluate battery query: parse % from TTS, compare vs device battery."""
     question_type = metadata.get("question_type", "").lower()
-    raw_state = metadata.get("device_info_post", metadata.get("device_info", {}))
+    raw_state = metadata.get("device_info_post", {})
 
     if "companion" in question_type:
         battery = raw_state.get("companion", {}).get("battery", {})
@@ -187,7 +187,7 @@ def handle_volume(question: str, ai_response: str, metadata: dict) -> Tuple[int,
     _, action = parse_question_type(question_type)
 
     pre_full = metadata.get("device_info_pre", {})
-    post_full = metadata.get("device_info_post", metadata.get("device_info", {}))
+    post_full = metadata.get("device_info_post", {})
 
     # Collect all streams from both jinju and companion, both pre and post
     all_streams_data = []  # list of (stream_name, pre_info, post_info, source)

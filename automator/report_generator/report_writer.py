@@ -116,12 +116,6 @@ class VQASample:
             if os.path.exists(ss_path):
                 self.post_screenshot_bytes_list.append(Base64Converter.encode_to_base64(ss_path)["file_base64"])
 
-        # Fallback to old single screenshot field for backward compatibility
-        if not self.post_screenshot_bytes_list:
-            app_screenshot_path = meta_info.get("app_screenshot_path", "")
-            if app_screenshot_path and os.path.exists(app_screenshot_path):
-                self.post_screenshot_bytes_list = [Base64Converter.encode_to_base64(app_screenshot_path)["file_base64"]]
-
         # Single app screenshot (base64 or empty string) for the template's legacy block
         self.app_screenshot_bytes = self.post_screenshot_bytes_list[0] if self.post_screenshot_bytes_list else ""
 

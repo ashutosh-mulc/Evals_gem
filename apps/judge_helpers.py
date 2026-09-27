@@ -12,6 +12,8 @@ import subprocess
 import logging
 from typing import Tuple
 
+from apps.helpers import VERIFIED_METHODS
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,7 +74,7 @@ def get_device_state(metadata: dict, when: str = "post") -> dict:
     if when == "pre":
         state = metadata.get("device_info_pre", {})
     else:
-        state = metadata.get("device_info_post", metadata.get("device_info", {}))
+        state = metadata.get("device_info_post", {})
 
     question_type = metadata.get("question_type", "").lower()
 
@@ -83,22 +85,9 @@ def get_device_state(metadata: dict, when: str = "post") -> dict:
 
 
 def get_flag(metadata: dict, flag_name: str) -> bool:
-    """Extract a boolean flag from metadata.
-
-    Checks app_state.log_analysis (unified state channel) first, then falls
-    back to top-level extra_logs for backward compatibility.
-    """
-    # Primary: app_state.log_analysis (unified state channel)
-    app_state = metadata.get("app_state", {})
-    if isinstance(app_state, dict):
-        log_analysis = app_state.get("log_analysis", {})
-        if isinstance(log_analysis, dict) and log_analysis.get(flag_name):
-            return True
-    # Backward compat: top-level extra_logs
-    extra_logs = metadata.get("extra_logs", {})
-    if isinstance(extra_logs, dict):
-        return extra_logs.get(flag_name, False)
-    return False
+    """Read a boolean log-analysis flag (e.g. jinju_image_captured) from metadata."""
+    app_state = metadata.get("app_state") or {}
+    return bool((app_state.get("log_analysis") or {}).get(flag_name, False))
 
 
 def parse_question_type(question_type: str) -> Tuple[str, str]:
@@ -158,18 +147,16 @@ def handle_app_state(question: str, ai_response: str, metadata: dict) -> Tuple[i
     If app_state is missing or indicates an error, returns a low
     rating so the caller can fall back to VLM.
     """
-    app_state = metadata.get("app_state")
-    if app_state is None:
-        app_state = metadata.get("xrclaw_state", {})
+    app_state = metadata.get("app_state", {})
 
     if not app_state:
         return 0, "App state query: no app_state found in metadata. Criteria: state collector must have captured app state. Cannot evaluate deterministically — falling back to VLM. Rating: 0."
 
     method = app_state.get("method", "")
-    if method not in ("xrclaw", "xrclaw_read", "state_collector", "state_collector_read"):
+    if method not in VERIFIED_METHODS:
         if method == "xrclaw_unavailable":
             return 0, f"App state query: state collector reports '{app_state.get('analysis', 'App state unavailable')}'. Criteria: state collector must verify app state. Cannot verify deterministically — falling back to VLM with gt_answer grounding. Rating: 0."
-        return 0, f"App state query: state collector method is '{method}' (not a successful verification). Criteria: method must be 'xrclaw' or 'state_collector'. Falling back to VLM. Rating: 0."
+        return 0, f"App state query: state collector method is '{method}' (not a successful verification). Criteria: method must be one of {sorted(VERIFIED_METHODS)}. Falling back to VLM. Rating: 0."
 
     rating = app_state.get("rating", 0)
     analysis = app_state.get("analysis", "No state collector analysis available.")

@@ -65,7 +65,6 @@ class XRClawStateCollector(StateCollector):
         python_automation_path: str,
         adb_device: str,
         adb_path: str = "adb",
-        claw_package: str = "com.samsung.xr.claw.client",
     ):
         """
         Initialize the XRClaw state collector.
@@ -74,11 +73,9 @@ class XRClawStateCollector(StateCollector):
             python_automation_path: Path to the XRClaw `python_automation` directory.
             adb_device: ADB serial of the companion device running the apps.
             adb_path: Path to the ADB executable (default: "adb").
-            claw_package: XRClaw client package name (unused for queries, kept for future use).
         """
         self.adb_device = adb_device
         self.adb_path = adb_path
-        self.claw_package = claw_package
         self._dm = None
 
         if not python_automation_path or not os.path.isdir(python_automation_path):

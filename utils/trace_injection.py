@@ -205,9 +205,9 @@ def _patch_agent_tester_side(config: dict) -> None:
             orig, "agent_tester", "capture_post_meta",
         )
 
-    if hasattr(DeviceManager, "capture_xrclaw_pre_state"):
-        orig = DeviceManager.capture_xrclaw_pre_state
-        DeviceManager.capture_xrclaw_pre_state = _make_wrapper(
+    if hasattr(DeviceManager, "capture_pre_state"):
+        orig = DeviceManager.capture_pre_state
+        DeviceManager.capture_pre_state = _make_wrapper(
             orig, "agent_tester", "capture_xrclaw_pre",
             extract_outputs=lambda result, *a, **kw: {
                 "app_state_keys": list(

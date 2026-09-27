@@ -109,8 +109,6 @@ class AgentTester:
                 self.device_manager.state_collector = self.device_manager._init_state_collector(
                     xrclaw_config, xrclaw_device
                 )
-                # Backward compat: keep xrclaw_collector as an alias
-                self.device_manager.xrclaw_collector = self.device_manager.state_collector
 
             else:
                 print("Warning: XRClaw enabled but no s25_device_id found in config for XRClaw target device")
@@ -118,7 +116,7 @@ class AgentTester:
         # Initialize precondition manager for app evaluations
         self.precondition_manager = PreconditionManager(
             self.device_manager,
-            getattr(self.device_manager, "state_collector", None),
+            self.device_manager.state_collector,
         )
 
         # set arap configs
@@ -227,7 +225,6 @@ class AgentTester:
               - eval_id, eval_type, question, question_type, reference
               - encoded_audio: Base64-encoded agent response audio
               - encoded_image: Base64-encoded Jinju screen image
-              - encoded_app_screenshot: Base64-encoded phone screenshot (if available)
               - metadata: Full metadata dict for verification
 
         Note:
@@ -244,7 +241,6 @@ class AgentTester:
                 "reference": itr_info.get("gt_answer", ""),
                 "encoded_audio": "",
                 "encoded_image": "",
-                "encoded_app_screenshot": "",
                 "metadata": itr_info["metadata"]
             }
 
@@ -252,13 +248,6 @@ class AgentTester:
 
         # Always encode the Jinju screen image (what the AI saw)
         encoded_image = Base64Converter.encode_to_base64(itr_info["metadata"]["image_path"])
-
-        # If an app screenshot (S25 companion device) was captured, encode it separately
-        # so the judge can see both the Jinju screen and the app state on the phone.
-        encoded_app_screenshot = ""
-        app_screenshot_path = itr_info["metadata"].get("app_screenshot_path")
-        if app_screenshot_path and os.path.exists(app_screenshot_path):
-            encoded_app_screenshot = Base64Converter.encode_to_base64(app_screenshot_path)["file_base64"]
 
         payload = {
             "eval_id": itr_info["eval_id"],
@@ -268,7 +257,6 @@ class AgentTester:
             "reference": itr_info["gt_answer"],
             "encoded_audio": encoded_audio["file_base64"],
             "encoded_image": encoded_image["file_base64"],
-            "encoded_app_screenshot": encoded_app_screenshot,
             "metadata": itr_info["metadata"]
         }
         
@@ -304,7 +292,7 @@ class AgentTester:
             Enriched question_info dict with metadata including:
                 - image_path, audio_raw_path, response_path
                 - device_info_pre/post, app_state
-                - extra_logs (logcat, screenshots)
+                - app_state.log_analysis (logcat flags, pulled files)
                 - precondition_report, jinju_image_captured flag
         """
         
@@ -390,9 +378,9 @@ class AgentTester:
 
             # Snapshot XRClaw app state (notes/reminders/calendar/alarms lists) pre-invoke
             # so verification can diff pre vs post instead of a stale-match-prone
-            # existence check. See DeviceManagerTemplate.capture_xrclaw_pre_state.
+            # existence check. See StateCollectMixin.capture_pre_state.
                       
-            self.device_manager.capture_xrclaw_pre_state(question_info) 
+            self.device_manager.capture_pre_state(question_info)
             question_info["metadata"]["precondition_report"] = precond_report
 
             # Capture PRE-state screenshot AFTER preconditions, BEFORE Gemini invoke
@@ -443,16 +431,9 @@ class AgentTester:
 
 
         if self.dump_logs:
-            extra_logs = self.device_manager.logger()
-            if extra_logs:
-                # Merge extra_logs into app_state.log_analysis (unified state channel)
-                app_state = question_info["metadata"].get("app_state", {})
-                if not isinstance(app_state, dict):
-                    app_state = {}
-                app_state["log_analysis"] = extra_logs
-                question_info["metadata"]["app_state"] = app_state
-                # Keep extra_logs for backward compat (report generator, dashboard)
-                question_info["metadata"]["extra_logs"] = extra_logs
+            log_analysis = self.device_manager.logger()
+            if log_analysis:
+                question_info["metadata"].setdefault("app_state", {})["log_analysis"] = log_analysis
             
             # Move all files from tmp/ to per-query subfolder: assets/q{eval_id}/
             # Files are renamed with an eval_id suffix (e.g., jinju_log.txt →

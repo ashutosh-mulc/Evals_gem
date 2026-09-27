@@ -2,6 +2,7 @@ from openai import OpenAI
 from judge_worker.judge_prompts import *
 from judge_worker.judge_response_parser import parse_judge_response
 from judge_worker.device_info_filter import filter_device_info
+from apps.judge_helpers import get_flag
 import requests
 import json
 import logging
@@ -270,23 +271,11 @@ class ResponseScorer:
         # liked, disliked, song_title, power metrics, etc.)
         if eval_type == "APP_EVAL_TASK" and eval_json:
             metadata = eval_json.get("metadata", {})
-            collected_state = metadata.get("app_state")
-            if collected_state is None:
-                collected_state = metadata.get("xrclaw_state")
-            if collected_state and isinstance(collected_state, dict):
-                app_state_str = json.dumps(collected_state, ensure_ascii=False, indent=2)
-            else:
-                app_state_str = "{}"
+            app_state = metadata.get("app_state")
+            app_state_str = json.dumps(app_state, ensure_ascii=False, indent=2) if isinstance(app_state, dict) and app_state else "{}"
             prompt = prompt.replace("<<app_state>>", app_state_str)
-
-            # Inject camera-specific flags from extra_logs
-            # (jinju_image_captured / jinju_video_captured are the same source
-            # used by the deterministic judge's get_flag() helper)
-            extra_logs = metadata.get("extra_logs", {})
-            image_captured = extra_logs.get("jinju_image_captured", False)
-            video_captured = extra_logs.get("jinju_video_captured", False)
-            prompt = prompt.replace("<<image_captured>>", str(image_captured))
-            prompt = prompt.replace("<<video_captured>>", str(video_captured))
+            prompt = prompt.replace("<<image_captured>>", str(get_flag(metadata, "jinju_image_captured")))
+            prompt = prompt.replace("<<video_captured>>", str(get_flag(metadata, "jinju_video_captured")))
         else:
             prompt = prompt.replace("<<app_state>>", "{}")
             prompt = prompt.replace("<<image_captured>>", "False")
@@ -294,18 +283,19 @@ class ResponseScorer:
 
         return prompt
 
-    def _build_messages(self, prompt, eval_type, question_type, encoded_image,
-                         encoded_post_screenshots):
+    def _image_part(self, b64: str) -> dict:
+        url = f"data:image/png;base64,{b64}"
+        if self.use_vllm_apis:
+            return {"type": "image_url", "image_url": {"url": url}}
+        return {"type": "image", "image": url}
+
+    def _build_messages(self, prompt, eval_type, question_type, encoded_image, post_screenshots):
         """Build the messages list for the VLM API call.
 
-        Determines whether to send:
-        - Text only (QA_TASK, camera/device queries)
-        - Image + text (VQA, Hallucination, APP_EVAL without device/camera)
-        - Notification screenshot only (notification queries)
-        - Dual image (Jinju + companion screenshot(s))
-        
-        Args:
-            encoded_post_screenshots: List of base64-encoded post-state screenshots (can be 1 or many)
+        - notification queries with a screenshot: the first post-state screenshot
+        - VQA / Hallucination / APP_EVAL (except device & camera queries): the Jinju
+          image plus every post-state screenshot
+        - everything else (QA, device, camera): text only
         """
         q_type_lower = question_type.lower()
         is_notifications_query = "notifications" in q_type_lower
@@ -314,67 +304,18 @@ class ResponseScorer:
             and not is_notifications_query
         )
 
-        # Handle notification queries with screenshot
-        if is_notifications_query and encoded_post_screenshots:
-            screenshot_b64 = encoded_post_screenshots[0] if isinstance(encoded_post_screenshots, list) else encoded_post_screenshots
-            if self.use_vllm_apis:
-                image_content = [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}},
-                ]
-            else:
-                image_content = [
-                    {"type": "image", "image": f"data:image/png;base64,{screenshot_b64}"},
-                    {"type": "text", "text": prompt},
-                ]
-            return [{"role": "user", "content": image_content}]
-
-        elif eval_type in ["Visual_QA_TASK", "Hallucination_TASK", "APP_EVAL_TASK"] and not is_device_or_camera_query:
-            # Build image content list — always includes the Jinju screen image.
-            if self.use_vllm_apis:
-                image_content = [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded_image}"}},
-                ]
-                # Add all post-state screenshots
-                if encoded_post_screenshots and isinstance(encoded_post_screenshots, list):
-                    for i, screenshot_b64 in enumerate(encoded_post_screenshots):
-                        image_content.append({
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"},
-                        })
-                elif encoded_post_screenshots:
-                    # Backward compat: single string
-                    image_content.append({
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{encoded_post_screenshots}"},
-                    })
-            else:
-                image_content = [
-                    {"type": "image", "image": f"data:image/png;base64,{encoded_image}"},
-                    {"type": "text", "text": prompt},
-                ]
-                # Add all post-state screenshots
-                if encoded_post_screenshots and isinstance(encoded_post_screenshots, list):
-                    for i, screenshot_b64 in enumerate(encoded_post_screenshots):
-                        image_content.insert(i, {
-                            "type": "image",
-                            "image": f"data:image/png;base64,{screenshot_b64}",
-                        })
-                elif encoded_post_screenshots:
-                    # Backward compat: single string
-                    image_content.insert(0, {
-                        "type": "image",
-                        "image": f"data:image/png;base64,{encoded_post_screenshots}",
-                    })
-            return [{"role": "user", "content": image_content}]
-
+        if is_notifications_query and post_screenshots:
+            images = post_screenshots[:1]
+        elif eval_type in ("Visual_QA_TASK", "Hallucination_TASK", "APP_EVAL_TASK") and not is_device_or_camera_query:
+            # vLLM gets the Jinju image first; the other API gets it last
+            images = [encoded_image, *post_screenshots] if self.use_vllm_apis else [*post_screenshots, encoded_image]
         else:
-            # Text-only messages (QA_TASK, or camera/device queries)
-            return [{
-                "role": "user",
-                "content": [{"type": "text", "text": prompt}],
-            }]
+            images = []
+
+        text = {"type": "text", "text": prompt}
+        parts = [self._image_part(b64) for b64 in images]
+        content = [text, *parts] if self.use_vllm_apis else [*parts, text]
+        return [{"role": "user", "content": content}]
 
     def _call_judge_api(self, messages):
         """Call the VLM judge API with error handling.
@@ -448,7 +389,7 @@ class ResponseScorer:
     def run_judge(self, eval_type: str, question: str, gt_answer: str, ai_response: str,
                   encoded_image: str = "", question_type: str = "", device_info: dict = None,
                   eval_json: dict = None, device_info_pre: dict = None,
-                  encoded_app_screenshot: str = "") -> (str, object, str):
+                  post_screenshots: list = ()) -> (str, object, str):
 
         assert eval_type not in ["Visual_QA_TASK", "Hallucination_TASK"] or \
             (eval_type in ["Visual_QA_TASK", "Hallucination_TASK"] and encoded_image != ""), "encoded_image cannot be empty for VQA"
@@ -498,7 +439,7 @@ class ResponseScorer:
 
             # 4. Build messages
             messages = self._build_messages(
-                prompt, eval_type, question_type, encoded_image, encoded_app_screenshot
+                prompt, eval_type, question_type, encoded_image, post_screenshots
             )
 
             # 5. Call judge API
@@ -634,19 +575,11 @@ class ResponseScorer:
         base64_image = eval_db["encoded_image"]
         metadata = eval_db.get("metadata", {})
         
-        # Get post-state screenshots for judge (new multi-screenshot support)
-        post_screenshot_paths = metadata.get("post_state_screenshots", [])
-        encoded_post_screenshots = []
-        for ss_path in post_screenshot_paths:
-            if os.path.exists(ss_path):
-                encoded = Base64Converter.encode_to_base64(ss_path)["file_base64"]
-                encoded_post_screenshots.append(encoded)
-        
-        # Fallback to old single screenshot field for backward compatibility
-        if not encoded_post_screenshots:
-            base64_app_screenshot = eval_db.get("encoded_app_screenshot", "")
-            if base64_app_screenshot:
-                encoded_post_screenshots = [base64_app_screenshot]
+        encoded_post_screenshots = [
+            Base64Converter.encode_to_base64(path)["file_base64"]
+            for path in metadata.get("post_state_screenshots", [])
+            if os.path.exists(path)
+        ]
 
         # Skipped app — return 0-rated dummy without calling transcription/judge
         if metadata.get("skip"):
@@ -664,8 +597,7 @@ class ResponseScorer:
             )
             return response, result_meta
 
-        # Support both single device_info (backward compatible) and dual-state (device_info_pre/post)
-        device_info_post = metadata.get("device_info_post", metadata.get("device_info", {}))
+        device_info_post = metadata.get("device_info_post", {})
         device_info_pre = metadata.get("device_info_pre", {})
 
         stt_json = self.get_text_response(base64_ai_response)

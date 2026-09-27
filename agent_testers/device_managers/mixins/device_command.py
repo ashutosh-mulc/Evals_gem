@@ -132,13 +132,9 @@ class DeviceCommandMixin:
             qt = QuestionType.parse(q_info.get("question_type", ""))
             mode = qt.action if qt.action in app_config["tasks"] else "read"
             self._execute_app_tasks("device", app_config, mode)
-            app_screenshot = os.path.join(self.log_folder, "app_screenshot.png")
-
-
-            if os.path.exists(app_screenshot):
-                q_info["metadata"]["app_screenshot_path"] = app_screenshot
+            # capture_post_state_meta_info moves this into post_state_screenshots
+            if os.path.exists(os.path.join(self.log_folder, "app_screenshot.png")):
                 result["action"] = "notification_screenshot_captured"
-                print(f"Notification panel screenshot saved: {app_screenshot}")
             else:
                 result["error"] = "Failed to capture notification screenshot"
                 print("Warning: Failed to capture notification panel screenshot!")

@@ -11,8 +11,6 @@ class DeviceManager(AppTasksMixin, StateCollectMixin, DeviceManagerTemplate):
         self.live_device = gemini_device_id  # runs Gemini Live -> event-driven conversation loop
         self.log_procs = []
         self.log_folder = log_dump_folder
-        self.state_collector = None
-        self.xrclaw_collector = None  # backward-compat alias
         self._adb = AdbClient()
 
         print(f"Make sure {self.gemini_device} is a rooted device!")
@@ -61,11 +59,7 @@ class DeviceManager(AppTasksMixin, StateCollectMixin, DeviceManagerTemplate):
         # ── Step 1: XRClaw verification (if available) ──────────────
         # Runs first, stores result in metadata["app_state"].
         # Does NOT return early — app tasks always run after this.
-        collect_fn = getattr(self, "_collect_state", None) or getattr(self, "_xrclaw_collect_state", None)
-        collector = getattr(self, "xrclaw_collector", None) or getattr(self, "state_collector", None)
-        if collect_fn and collector:
-            collect_fn(collector, q_info)
-            print(f"----XRClaw verification completed for {app_name}----")
+        self._collect_state(q_info)
 
         # ── Step 2: Execute app tasks from config (ALWAYS runs) ───
         # This opens the app, navigates, takes screenshot, and closes app.
@@ -88,7 +82,7 @@ class DeviceManager(AppTasksMixin, StateCollectMixin, DeviceManagerTemplate):
         # ── Step 3: Store screenshot path ───────────────────────────
         app_screenshot = os.path.join(self.log_folder, "app_screenshot.png")
         if os.path.exists(app_screenshot):
-            q_info["metadata"]["app_screenshot_path"] = app_screenshot
+            q_info["metadata"]["post_state_screenshots"] = [app_screenshot]
 
     
     def terminate(self):
@@ -108,11 +102,7 @@ class DeviceManager(AppTasksMixin, StateCollectMixin, DeviceManagerTemplate):
             self.__pull_s25_query_image()
             if len(os.listdir(self.log_folder)) > 0:
                 for file_name in os.listdir(self.log_folder):
-                    if "app_screenshot" in file_name:
-                        shutil.move(os.path.join(self.log_folder, file_name), os.path.join(self.log_folder, "app_screenshot.png"))
-                        log_files["app_screenshot_path"] = os.path.join(self.log_folder, "app_screenshot.png")
-                        break
-                    elif "screen.png" in file_name:
+                    if "screen.png" in file_name:
                         shutil.move(os.path.join(self.log_folder, file_name), os.path.join(self.log_folder, "device_view_image.png"))
                         log_files["device_view_image_path"] = os.path.join(self.log_folder, "device_view_image.png")
             

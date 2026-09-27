@@ -130,10 +130,11 @@ def judge_response(
         if image_path and os.path.exists(image_path):
             encoded_image = Base64Converter.encode_to_base64(image_path).get("file_base64", "")
 
-        encoded_app_screenshot = ""
-        app_ss_path = q_info.get("metadata", {}).get("app_screenshot_path", "") if q_info else ""
-        if app_ss_path and os.path.exists(app_ss_path):
-            encoded_app_screenshot = Base64Converter.encode_to_base64(app_ss_path).get("file_base64", "")
+        post_screenshots = [
+            Base64Converter.encode_to_base64(path)["file_base64"]
+            for path in metadata.get("post_state_screenshots", [])
+            if os.path.exists(path)
+        ]
 
         eval_db = {
             "eval_id": q_info.get("eval_id", "") if q_info else "",
@@ -143,7 +144,6 @@ def judge_response(
             "reference": q_info.get("gt_answer", "") if q_info else "",
             "encoded_audio": "",
             "encoded_image": encoded_image,
-            "encoded_app_screenshot": encoded_app_screenshot,
             "metadata": metadata,
         }
 
@@ -157,7 +157,7 @@ def judge_response(
             device_info=post_state,
             eval_json=eval_db,
             device_info_pre=pre_state,
-            encoded_app_screenshot=encoded_app_screenshot,
+            post_screenshots=post_screenshots,
         )
 
 
@@ -386,7 +386,7 @@ def _capture_pre_state(
 
     # XRClaw pre-state
     try:
-        resources.dm.capture_xrclaw_pre_state(q_info)
+        resources.dm.capture_pre_state(q_info)
         tracer.step("capture_xrclaw_pre_state", outputs={"status": "captured"})
     except Exception as e:
         print(f"  [ERROR] capture_xrclaw_pre_state failed: {e}", flush=True)

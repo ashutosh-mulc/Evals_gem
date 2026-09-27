@@ -164,7 +164,6 @@ class TestGetJudgeScorePromptSaving:
             "reference": "4",
             "encoded_audio": ai_response_b64,
             "encoded_image": "",
-            "encoded_app_screenshot": "",
             "metadata": {
                 "image_path": image_path,
             },
@@ -249,7 +248,6 @@ class TestGetJudgeScorePromptSaving:
             "reference": "increased",
             "encoded_audio": "",
             "encoded_image": "",
-            "encoded_app_screenshot": "",
             "metadata": {
                 "image_path": image_path,
                 "device_info_pre": {"jinju": {"volume": {"current": 30, "max": 100}}},
@@ -347,7 +345,7 @@ class TestDashboardPromptReading:
         }
 
         # Import the dashboard module
-        import scripts.eval_dashboard as dashboard_mod
+        import services.client.eval_dashboard as dashboard_mod
 
         with patch.object(dashboard_mod, "get_row", return_value=mock_row):
             with patch.object(dashboard_mod, "render_template_string") as mock_render:
@@ -383,7 +381,7 @@ class TestDashboardPromptReading:
             "created_at": "2024-01-01",
         }
 
-        import scripts.eval_dashboard as dashboard_mod
+        import services.client.eval_dashboard as dashboard_mod
 
         with patch.object(dashboard_mod, "get_row", return_value=mock_row):
             with patch.object(dashboard_mod, "render_template_string") as mock_render:
@@ -417,7 +415,7 @@ class TestDashboardPromptReading:
             "created_at": "2024-01-01",
         }
 
-        import scripts.eval_dashboard as dashboard_mod
+        import services.client.eval_dashboard as dashboard_mod
 
         with patch.object(dashboard_mod, "get_row", return_value=mock_row):
             with patch.object(dashboard_mod, "render_template_string") as mock_render:

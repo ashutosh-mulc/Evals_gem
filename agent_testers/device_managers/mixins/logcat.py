@@ -100,10 +100,7 @@ class LogcatMixin:
                         file_type_processed["denoised"] = True
                     elif ".png" in file_name:
                         if os.path.exists(os.path.join(self.log_folder, file_name)):
-                            if "app_screenshot" in file_name:
-                                shutil.move(os.path.join(self.log_folder, file_name), os.path.join(self.log_folder, "app_screenshot.png"))
-                                log_files["app_screenshot_path"] = os.path.join(self.log_folder, "app_screenshot.png")
-                            elif "device_view_image" in file_name:
+                            if "device_view_image" in file_name:
                                 if not file_type_processed["image_view"]:
                                     shutil.move(os.path.join(self.log_folder, file_name), os.path.join(self.log_folder, "device_view_image.png"))
                                     log_files["device_view_image_path"] = os.path.join(self.log_folder, "device_view_image.png")

@@ -69,8 +69,8 @@ class StateCollector(ABC):
 
         Returns:
             Result dict with keys:
-                - method: str (e.g. "state_collector" on success,
-                  "state_collector_error" on failure)
+                - method: str (one of apps.helpers.VERIFIED_METHODS on success,
+                  e.g. "xrclaw_error" / "xrclaw_unsupported" otherwise)
                 - app_name: str
                 - verified: bool
                 - rating: int (0-5)

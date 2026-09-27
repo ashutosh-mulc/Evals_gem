@@ -282,7 +282,3 @@ def get_package_name(app_key: str) -> str | None:
         return feature_cfg.get("package_name", "")
     return None
 
-
-# ── Backward-compatible aliases ───────────────────────────────────
-XRCLAW_APP_KEY_MAP = APP_KEY_MAP
-get_xrclaw_app_key = get_app_key

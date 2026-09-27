@@ -29,6 +29,10 @@ class DeviceManagerTemplate(ABC):
     subclass — ``agent_tester.py`` should not be changed.
     '''
 
+    # StateCollector instance, or None when state collection is disabled.
+    # agent_tester sets it after construction when config["xrclaw"]["enabled"].
+    state_collector = None
+
     # ── Abstract methods (every manager must implement) ────────────
 
     @staticmethod
@@ -126,15 +130,9 @@ class DeviceManagerTemplate(ABC):
         """No-op: returns None. Override via StateCollectMixin."""
         return None
 
-    # Backward-compatible alias
-    _init_xrclaw_collector = _init_state_collector
-
     def capture_pre_state(self, q_info: dict) -> None:
         """No-op. Override via StateCollectMixin."""
         pass
-
-    # Backward-compatible alias
-    capture_xrclaw_pre_state = capture_pre_state
 
     def capture_device_info(self, q_info, capture_type="post", device_state=None):
         """No-op. Override via DeviceInfoMixin."""

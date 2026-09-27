@@ -185,18 +185,15 @@ class ReportGenerator:
         feature = parts[2] if len(parts) >= 3 else ""
         action = parts[3] if len(parts) >= 4 else ""
 
-        # ── XRClaw app state (for all app + notification queries) ──
-        # Read from new key with backward-compat fallback to old key
-        xrclaw = meta_info.get("app_state")
-        if xrclaw is None:
-            xrclaw = meta_info.get("xrclaw_state", {})
-        if xrclaw:
+        # ── State collector result (for all app + notification queries) ──
+        app_state = meta_info.get("app_state") or {}
+        if app_state.get("method"):
             grounding["app_state"] = {
-                "verified": xrclaw.get("verified"),
-                "rating": xrclaw.get("rating"),
-                "analysis": xrclaw.get("analysis"),
-                "method": xrclaw.get("method"),
-                "actual_state": xrclaw.get("actual_state"),
+                "verified": app_state.get("verified"),
+                "rating": app_state.get("rating"),
+                "analysis": app_state.get("analysis"),
+                "method": app_state.get("method"),
+                "actual_state": app_state.get("actual_state"),
             }
 
         # ── Device state (ONLY for device_* queries) ──
@@ -207,8 +204,6 @@ class ReportGenerator:
             for when in ("pre", "post"):
                 key = f"device_info_{when}"
                 state = meta_info.get(key, {})
-                if not state and when == "post":
-                    state = meta_info.get("device_info", {})
                 if not state:
                     continue
 
@@ -241,14 +236,11 @@ class ReportGenerator:
             grounding["image_captured"] = get_flag(meta_info, "jinju_image_captured")
             grounding["video_captured"] = get_flag(meta_info, "jinju_video_captured")
 
-        # ── Extra logs (filtered, for all queries) ──
-        extra_logs = meta_info.get("extra_logs", {})
-        if isinstance(extra_logs, dict) and extra_logs:
-            # Only include non-redundant fields
-            filtered = {k: v for k, v in extra_logs.items()
-                        if k not in ("jinju_image_captured", "jinju_image_path")}
-            if filtered:
-                grounding["extra_logs"] = filtered
+        # ── Log analysis flags (filtered, for all queries) ──
+        filtered = {k: v for k, v in (app_state.get("log_analysis") or {}).items()
+                    if k not in ("jinju_image_captured", "jinju_image_path")}
+        if filtered:
+            grounding["log_analysis"] = filtered
 
         return grounding
 

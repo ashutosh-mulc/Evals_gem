@@ -23,8 +23,6 @@ from apps.registry import (
     get_app_info,
     get_app_key,
     get_package_name,
-    XRCLAW_APP_KEY_MAP,
-    get_xrclaw_app_key,
 )
 
 __all__ = [
@@ -44,6 +42,4 @@ __all__ = [
     "get_app_info",
     "get_app_key",
     "get_package_name",
-    "XRCLAW_APP_KEY_MAP",
-    "get_xrclaw_app_key",
 ]

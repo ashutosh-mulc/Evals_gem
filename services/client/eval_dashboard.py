@@ -596,14 +596,6 @@ DETAIL_HTML = r"""
     </div>
     {% endif %}
     
-    <!-- Fallback: Old app_screenshot_path for backward compat -->
-    {% if meta.app_screenshot_path and not meta.post_state_screenshots %}
-    <div class="card">
-      <h3>Companion Screenshot (Legacy)</h3>
-      <img src="/asset?path={{ meta.app_screenshot_path }}" alt="Companion screenshot" style="max-width:100%;border-radius:8px">
-    </div>
-    {% endif %}
-    
     <div class="card">
       <h3>Question Audio</h3>
       {% if meta.audio_raw_path %}
@@ -648,10 +640,10 @@ DETAIL_HTML = r"""
 </div>
 {% endif %}
 
-{% if meta.get('extra_logs') %}
-<h2>Extra Logs</h2>
+{% if meta.get('app_state') %}
+<h2>App State</h2>
 <div class="card">
-  <pre>{{ meta.get('extra_logs', {}) | tojson(indent=2) }}</pre>
+  <pre>{{ meta.get('app_state') | tojson(indent=2) }}</pre>
 </div>
 {% endif %}
 
