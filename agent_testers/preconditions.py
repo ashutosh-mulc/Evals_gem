@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from apps.precondition_helpers import report as build_report
 from common.question_type import QuestionType
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ class PreconditionManager:
 
         # No question type or not an app eval — skip
         if not qt.group or not qt.feature:
-            return self._skip("No question_type or unparseable")
+            return build_report(skipped="No question_type or unparseable")
 
         # For launch actions: force-stop the app first to ensure clean state
         if qt.action == "launch" and qt.app_key:
@@ -75,11 +76,11 @@ class PreconditionManager:
         from apps import PRECONDITIONS
         precond_mod = PRECONDITIONS.get(qt.app_key)
         if precond_mod is None:
-            return self._skip(f"No precondition module for app_key='{qt.app_key}'")
+            return build_report(skipped=f"No precondition module for app_key='{qt.app_key}'")
 
         setup_fn = getattr(precond_mod, "setup", None)
         if setup_fn is None:
-            return self._skip(f"No setup() in precondition module for '{qt.app_key}'")
+            return build_report(skipped=f"No setup() in precondition module for '{qt.app_key}'")
 
         question = q_info.get("question", "")
         gt_answer = q_info.get("gt_answer", "")
@@ -100,29 +101,21 @@ class PreconditionManager:
             return report
         except Exception as e:
             logger.error("Precondition setup failed for %s: %s", qt.app_key, e, exc_info=True)
-            return self._fail(f"Precondition setup raised: {e}")
+            return build_report(passed=False, failed=[f"Precondition setup raised: {e}"])
 
 
     # ── Internal helpers ──────────────────────────────────────────
 
     @staticmethod
     def _normalize_report(report: dict) -> dict:
-        """Ensure report has all expected keys with defaults."""
-        return {
-            "passed": report.get("passed", True),
-            "set": report.get("set", []),
-            "checked": report.get("checked", []),
-            "failed": report.get("failed", []),
-            "skipped": report.get("skipped", None),
-        }
-
-    @staticmethod
-    def _skip(reason: str) -> dict:
-        return {"passed": True, "set": [], "checked": [], "failed": [], "skipped": reason}
-
-    @staticmethod
-    def _fail(reason: str) -> dict:
-        return {"passed": False, "set": [], "checked": [], "failed": [reason], "skipped": None}
+        """Ensure a per-app setup_fn()'s report has all expected keys, with defaults."""
+        return build_report(
+            passed=report.get("passed", True),
+            set_items=report.get("set", []),
+            checked=report.get("checked", []),
+            failed=report.get("failed", []),
+            skipped=report.get("skipped", None),
+        )
 
     def _force_stop_app_for_launch(self, app_key: str) -> None:
         """Force-stop the app before a launch query so an already-running app can't pass."""
