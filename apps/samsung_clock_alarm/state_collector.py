@@ -60,7 +60,6 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
     pre_by_id = pre_items_by_id(pre_state, "alarms")
     pre_flag = "" if pre_by_id is not None else " [No pre-query snapshot; existence-only check, weaker guarantee.]"
 
-    gt_lower = gt_answer.lower()
 
     # Extract expected alarm time from gt_answer (e.g., "7:30", "07:30", "730")
     expected_time = None

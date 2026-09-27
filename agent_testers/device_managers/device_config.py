@@ -24,8 +24,6 @@ DEVICE_COMMAND_TYPES = {
 
 }
 
-DEVICE_STATES = ["online", "offline", "disconnected"]
-
 
 def _parse_stream_into(stream_name, lines, result):
     """Parse a single STREAM section's lines into result['all_streams'][stream_name]."""

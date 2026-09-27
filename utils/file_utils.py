@@ -66,15 +66,3 @@ class Base64Converter:
             f.write(file_bytes)
 
         print(f"File saved to: {path}")
-
-if __name__ == '__main__':
-    def random_load_file(path):
-        with open(path, 'r') as f:
-            data = json.load(f)
-        final_data = []
-        for i, inner_list in enumerate(data):
-            final_data.append(inner_list)
-        return final_data
-    data = random_load_file("/home/test/Amartya/work_2026/Gemini_Live_Evaluation/Evaluation_Framework/data/results/jinju_gemini_denoised_0705_0_150/updated_vrac.json")
-    header, _ = JSONLFileManager.load_file("/home/test/Amartya/work_2026/Gemini_Live_Evaluation/Evaluation_Framework/data/results/jinju_gemini_denoised_0705_0_150/vqa_report_baseline.jsonl")
-    JSONLFileManager.dump_file(header, data, "/home/test/Amartya/work_2026/Gemini_Live_Evaluation/Evaluation_Framework/data/results/jinju_gemini_denoised_0705_0_150/vqa_report.jsonl")

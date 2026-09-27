@@ -1,4 +1,4 @@
-import time, os, shutil, os, json
+import time, os, shutil, json
 from threading import Lock
 import sqlite3
 

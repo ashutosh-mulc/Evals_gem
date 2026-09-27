@@ -61,17 +61,3 @@ def setup(dm, sc, qt, question, gt_answer):
         return report(passed=False, failed=[f"Failed to create event '{title}': {e}"])
 
 
-def verify(dm, sc, qt, question, gt_answer):
-    action = qt.action
-    if action not in _NEEDS_EXISTING_EVENT:
-        return {"passed": True, "details": f"No precondition for action='{action}'"}
-
-    title = extract_title_from_gt(gt_answer)
-    if not title:
-        return {"passed": False, "details": "Could not extract event title"}
-
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
-    events = xrclaw_dm.calendar.find_events(title)
-    if events:
-        return {"passed": True, "details": f"Event '{title}' exists"}
-    return {"passed": False, "details": f"Event '{title}' not found"}

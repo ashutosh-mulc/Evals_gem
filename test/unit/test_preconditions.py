@@ -162,10 +162,6 @@ class TestPreconditionManagerDispatch:
             assert report["passed"] is False
             assert any("boom" in f for f in report["failed"])
 
-    def test_verify_returns_passed_when_no_module(self, mgr):
-        """verify() returns passed=True when no precondition module exists."""
-        result = mgr.verify(_make_q_info("online_google_mail_launch"))
-        assert result["passed"] is True
 
     def test_normalize_report_adds_defaults(self):
         """_normalize_report fills in missing keys."""
@@ -259,7 +255,6 @@ class TestSamsungNotesPreconditions:
         report = mgr.setup(q_info)
         assert report["passed"] is True
         assert len(dm.notes.find_notes()) == 0
-
 
 
 # ── Samsung Reminders preconditions ────────────────────────────────
@@ -444,7 +439,6 @@ class TestCalendarHolidayFiltering:
         titles = [e.title for e in filtered]
         assert "Some Day" not in titles
         assert "Real Event" in titles
-
 
 
 # ── Clock Alarm preconditions ──────────────────────────────────────

@@ -65,13 +65,3 @@ def setup(dm, sc, qt, question, gt_answer):
         return report(passed=False, failed=[f"Failed to create alarm: {e}"])
 
 
-def verify(dm, sc, qt, question, gt_answer):
-    action = qt.action
-    if action not in _NEEDS_EXISTING_ALARM:
-        return {"passed": True, "details": f"No precondition for action='{action}'"}
-
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
-    alarms = xrclaw_dm.alarms.find_alarms()
-    if alarms:
-        return {"passed": True, "details": f"{len(alarms)} alarm(s) exist"}
-    return {"passed": False, "details": "No alarms found"}

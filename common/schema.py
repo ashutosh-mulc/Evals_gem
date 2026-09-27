@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -307,12 +306,6 @@ class AppConfig(BaseModel):
     def non_negative(cls, v: int) -> int:
         if v < 0:
             raise ValueError(f"Index must be non-negative, got {v}")
-        return v
-
-    @field_validator("device_manager_type")
-    @classmethod
-    def non_empty_when_used(cls, v: str) -> str:
-        # Empty is allowed for template; real configs must set it
         return v
 
     def validate_indices(self) -> None:

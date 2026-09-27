@@ -11,7 +11,6 @@ Requires the host class to provide:
     - self.xrclaw_collector (or self.state_collector): StateCollector or None
     - self._xrclaw_collect_state() / _collect_state(): From StateCollectMixin
     - self._pull_screenshot(): From AppTasksMixin
-    - self._capture_calendar_day_view(): From CalendarMixin
     - self._execute_app_tasks(): From AppTasksMixin
     - self.capture_device_info(): From DeviceInfoMixin
     - self._execute_device_command(): From DeviceCommandMixin
@@ -35,7 +34,6 @@ class AppMetaInfoMixin:
         - self.xrclaw_collector (or self.state_collector)
         - self._collect_state() (from StateCollectMixin)
         - self._pull_screenshot() (from AppTasksMixin)
-        - self._capture_calendar_day_view() (from CalendarMixin)
         - self._execute_app_tasks() (from AppTasksMixin)
         - self.capture_device_info() (from DeviceInfoMixin)
         - self._execute_device_command() (from DeviceCommandMixin)

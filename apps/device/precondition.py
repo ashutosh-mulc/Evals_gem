@@ -97,23 +97,6 @@ def _setup_dnd(dm, action):
         }
 
 
-
-def _verify_dnd(dm, action):
-    """Verify DND is in the expected pre-condition state."""
-    xrclaw_dm = getattr(dm, "_dm", None) or dm
-    try:
-        dnd_state = xrclaw_dm.device_info.get_dnd_mode()
-        if action == "on":
-            # Should be off (agent will turn it on)
-            return {"passed": not dnd_state.enabled, "details": f"DND enabled={dnd_state.enabled} (expected False)"}
-        elif action == "off":
-            # Should be on (agent will turn it off)
-            return {"passed": dnd_state.enabled, "details": f"DND enabled={dnd_state.enabled} (expected True)"}
-    except Exception as e:
-        return {"passed": False, "details": f"Failed to verify DND: {e}"}
-    return {"passed": True, "details": f"No DND verify for action='{action}'"}
-
-
 # ── Volume ───────────────────────────────────────────────────────
 
 # All Android audio stream IDs and names
@@ -187,7 +170,6 @@ def _setup_volume(dm, action):
     """
     jinju_device = getattr(dm, "jinju_device", None) or getattr(dm, "device", "")
     companion_device = getattr(dm, "companion_device", None)
-    xrclaw_dm = getattr(dm, "_dm", None) or dm
 
     # Target level directions
     volume_targets = {
@@ -272,16 +254,6 @@ def _setup_volume(dm, action):
         }
 
 
-def _verify_volume(dm, action):
-    """Verify volume is at expected level."""
-    xrclaw_dm = getattr(dm, "_dm", None) or dm
-    try:
-        vol_state = xrclaw_dm.device_info.get_volume()
-        return {"passed": True, "details": f"Volume current={vol_state.current}, muted={vol_state.muted}"}
-    except Exception as e:
-        return {"passed": False, "details": f"Failed to verify volume: {e}"}
-
-
 # ── MediaControl ─────────────────────────────────────────────────
 
 def _setup_mediacontrol(dm, action):
@@ -362,16 +334,6 @@ def _setup_mediacontrol(dm, action):
         }
 
 
-def _verify_mediacontrol(dm, action):
-    """Verify media is in expected state."""
-    xrclaw_dm = getattr(dm, "_dm", None) or dm
-    try:
-        media = xrclaw_dm.device_info.get_media()
-        return {"passed": True, "details": f"Media playing={media.get('playing', False)}"}
-    except Exception as e:
-        return {"passed": False, "details": f"Failed to verify media: {e}"}
-
-
 # ── Notification ─────────────────────────────────────────────────
 
 def _setup_notification(dm, action, gt_answer):
@@ -408,7 +370,7 @@ def _setup_notification(dm, action, gt_answer):
             title, content = gt_answer, ""
             if ":" in gt_answer:
                 title, content = gt_answer.split(":", 1)
-            posted = xrclaw_dm.notifications.post_notification(title.strip(), content.strip())
+            xrclaw_dm.notifications.post_notification(title.strip(), content.strip())
             logger.info("Precondition: posted notification '%s' for %s query", title, action)
             return {
                 "passed": True,
@@ -434,25 +396,6 @@ def _setup_notification(dm, action, gt_answer):
         "failed": [],
         "skipped": f"No notification precondition for action='{action}'",
     }
-
-
-def _verify_notification(dm, action):
-    """Verify notification state is correct."""
-    xrclaw_dm = getattr(dm, "_dm", None) or dm
-
-    if action == "notread":
-        notifications = xrclaw_dm.notifications.get_notifications()
-        if len(notifications) == 0:
-            return {"passed": True, "details": "Notification panel is empty"}
-        return {"passed": False, "details": f"{len(notifications)} notification(s) still present"}
-
-    elif action in ("read", "auto"):
-        notifications = xrclaw_dm.notifications.get_notifications()
-        if notifications:
-            return {"passed": True, "details": f"{len(notifications)} notification(s) exist"}
-        return {"passed": False, "details": "No notifications found"}
-
-    return {"passed": True, "details": f"No notification verify for action='{action}'"}
 
 
 # ── Main entry points ────────────────────────────────────────────
@@ -499,25 +442,3 @@ def setup(dm, sc, qt, question, gt_answer):
         }
 
 
-def verify(dm, sc, qt, question, gt_answer):
-    """Verify that the precondition state is correct."""
-    feature = qt.feature
-    action = qt.action
-
-    if feature in ("datetime", "battery"):
-        return {"passed": True, "details": f"No precondition for {feature}"}
-
-    xrclaw_dm = getattr(sc, "_dm", None) if sc else None
-    if xrclaw_dm is not None:
-        dm._dm = xrclaw_dm
-
-    if feature == "dnd":
-        return _verify_dnd(dm, action)
-    elif feature == "volume":
-        return _verify_volume(dm, action)
-    elif feature == "mediacontrol":
-        return _verify_mediacontrol(dm, action)
-    elif feature == "notification":
-        return _verify_notification(dm, action)
-
-    return {"passed": True, "details": f"No verify for feature='{feature}'"}

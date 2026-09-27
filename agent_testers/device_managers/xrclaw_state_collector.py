@@ -39,11 +39,10 @@ Usage:
 import sys
 import os
 import logging
-import subprocess
 
 from agent_testers.device_managers.state_collector import StateCollector
 from apps import STATE_COLLECTORS, supported_apps as _registry_supported_apps
-from apps.helpers import result, unsupported_result, error_result
+from apps.helpers import unsupported_result, error_result
 
 logger = logging.getLogger(__name__)
 

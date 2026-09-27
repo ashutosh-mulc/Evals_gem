@@ -343,9 +343,6 @@ class AgentTester:
         response_path = os.path.join(query_dir, response_filename)
         
         qt = QuestionType.parse(question_info.get("question_type", ""))
-        feature = qt.feature
-        group = qt.group
-        app_eval_mode = qt.action
 
         
         ## TODO: For app evaluation we can remove the blank images from the dataset

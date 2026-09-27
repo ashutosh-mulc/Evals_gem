@@ -124,38 +124,3 @@ def setup(dm, sc, qt, question, gt_answer):
     return report(skipped=f"No precondition needed for action='{action}'")
 
 
-def verify(dm, sc, qt, question, gt_answer):
-    """Verify that the precondition state is correct.
-
-    For exit: verify the Camera app is running (in foreground).
-    For launch: verify the Camera app is NOT running.
-    For other actions: always pass.
-    """
-    action = qt.action
-
-    if action == "exit":
-        # Verify camera is running — we just launched it in setup()
-        from ..judge_helpers import _is_package_running, get_flag
-        device = (
-            getattr(dm, "companion_device", None)
-            or getattr(dm, "s25_device_id", None)
-            or ""
-        )
-        is_running = _is_package_running(PACKAGE_NAME, device)
-        if is_running:
-            return {"passed": True, "details": "Camera app is running (in foreground)"}
-        return {"passed": False, "details": "Camera app is not running"}
-
-    if action == "launch":
-        from ..judge_helpers import _is_package_running
-        device = (
-            getattr(dm, "companion_device", None)
-            or getattr(dm, "s25_device_id", None)
-            or ""
-        )
-        is_running = _is_package_running(PACKAGE_NAME, device)
-        if not is_running:
-            return {"passed": True, "details": "Camera app is not running (clean state)"}
-        return {"passed": False, "details": "Camera app is still running"}
-
-    return {"passed": True, "details": f"No precondition for action='{action}'"}

@@ -14,7 +14,6 @@ The Robopod server exposes endpoints for:
 
 import requests
 import os
-import time
 
 
 class RobopodManager:

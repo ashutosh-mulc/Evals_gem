@@ -54,7 +54,6 @@ def capture_pre(dm) -> dict:
 def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
     """Verify Samsung Calendar state after the agent has acted."""
     app_name = app_key
-    import datetime as _dt
 
     # ── Launch mode: verify Samsung Calendar is in foreground ──
     if mode == "launch":

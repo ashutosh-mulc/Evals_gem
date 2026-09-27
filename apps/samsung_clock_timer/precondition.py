@@ -69,13 +69,3 @@ def setup(dm, sc, qt, question, gt_answer):
         return report(passed=False, failed=[f"Failed to create timer: {e}"])
 
 
-def verify(dm, sc, qt, question, gt_answer):
-    action = qt.action
-    if action not in _NEEDS_EXISTING_TIMER:
-        return {"passed": True, "details": f"No precondition for action='{action}'"}
-
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
-    timers = xrclaw_dm.timers.find_timers()
-    if timers:
-        return {"passed": True, "details": f"Timer exists ({len(timers)} timer(s))"}
-    return {"passed": False, "details": "No timer found"}

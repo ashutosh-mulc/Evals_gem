@@ -362,39 +362,4 @@ class AppTasksMixin:
         subprocess.run(command, shell=True)
         print(command)
 
-    def _open_app_for_screenshot(self, app_name: str):
-        """Open an app on the companion device so the screenshot shows the app
-        UI (not the home screen) for VLM context.
-
-        Args:
-            app_name: App key (e.g., 'samsungcalendar', 'googlecalendar')
-        """
-        from apps import APP_CONFIGS
-
-        device_id = self._get_companion_device()
-
-        # Resolve activity name from app config by searching all groups
-        activity_name = ""
-        for group_name, group_config in APP_CONFIGS.items():
-            for feature_name, feature_config in group_config.items():
-                if feature_config.get("app_key", "") == app_name:
-                    activity_name = feature_config.get("activity_name", "")
-                    break
-            if activity_name:
-                break
-
-        if not activity_name:
-            print(f"Warning: No activity name found for {app_name}, skipping app open")
-            return
-
-        print(f"Opening {app_name} ({activity_name}) for screenshot on {device_id}")
-        self._adb.start_activity(device_id, activity_name)
-        time.sleep(3)  # Wait for app to load
-
-    def _press_home(self):
-        """Press the home button on the companion device."""
-        device_id = self._get_companion_device()
-        print(f"Pressing home button on {device_id}")
-        self._adb.press_key(device_id, "KEYCODE_HOME")
-        time.sleep(1)
 

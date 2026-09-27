@@ -1,16 +1,14 @@
 """
 DeviceManagerTemplate — abstract base class for all device managers.
 
-This is the slim core: abstract method declarations + low-level ADB helpers
-(_click/_swipe/_back/_speak).  All higher-level functionality (app task
-execution, state collection, calendar capture) lives in the mixin classes
-under ``device_managers/mixins/`` and is opted into per-manager:
+Abstract methods + low-level ADB helpers (_click/_swipe/_back/_speak). Higher-level
+functionality lives in the mixins under ``device_managers/mixins/`` and is opted
+into per manager, e.g.:
 
-    class DeviceManager(AppTasksMixin, StateCollectMixin, CalendarMixin, DeviceManagerTemplate)
+    class DeviceManager(AppTasksMixin, StateCollectMixin, DeviceManagerTemplate)
 
-Managers that don't need app-level functionality (dummy, claude, gpt, meta)
-inherit ``DeviceManagerTemplate`` directly and get no-op stubs for the
-methods that ``agent_tester.execute()`` calls unconditionally.
+The no-op stubs at the bottom cover the methods ``agent_tester.execute()`` calls
+unconditionally, for managers that don't include the corresponding mixin.
 """
 
 from abc import ABC, abstractmethod
@@ -114,10 +112,6 @@ class DeviceManagerTemplate(ABC):
         time.sleep(wait_after)
         print("ARAP speaking user consent")
 
-    def reset_media_volume(self, device_id: str, volume: int) -> None:
-        """Reset media volume on a device. Override in subclass for device-specific impl."""
-        pass
-
     def reset_device_to_default_state(self) -> dict:
         """Reset the device to a known baseline before every APP_EVAL_TASK.
 
@@ -126,17 +120,7 @@ class DeviceManagerTemplate(ABC):
         """
         return {"set": [], "failed": []}
 
-    # ── No-op stubs for mixin methods ──────────────────────────────
-    # These are overridden by AppTasksMixin / StateCollectMixin / CalendarMixin
-    # in managers that opt into those mixins.  Managers that inherit
-    # DeviceManagerTemplate directly (dummy, claude, gpt, meta) get these
-    # no-ops so agent_tester.execute() can call them without crashing.
-
-    def _get_companion_device(self) -> str:
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement _get_companion_device() "
-            "or inherit AppTasksMixin"
-        )
+    # ── No-op stubs, overridden by the mixins ─────────────────────
 
     def _init_state_collector(self, collector_config: dict, adb_device: str):
         """No-op: returns None. Override via StateCollectMixin."""
@@ -152,35 +136,8 @@ class DeviceManagerTemplate(ABC):
     # Backward-compatible alias
     capture_xrclaw_pre_state = capture_pre_state
 
-    def _collect_state(self, collector, q_info: dict) -> bool:
-        """No-op: returns False. Override via StateCollectMixin."""
-        return False
-
-    # Backward-compatible alias
-    _xrclaw_collect_state = _collect_state
-
-    def _execute_app_tasks(self, app_name: str, app_config: dict, app_eval_mode: str):
-        """No-op. Override via AppTasksMixin."""
-        pass
-
-    def _capture_calendar_day_view(self, q_info, app_name):
-        """No-op. Override via CalendarMixin."""
-        pass
-
-    def _pull_screenshot(self, remote_path="/sdcard/Pictures/screen.png"):
-        """No-op. Override via AppTasksMixin."""
-        pass
-
-    def _clear_screenshot(self, remote_path="/sdcard/Pictures/screen.png"):
-        """No-op. Override via AppTasksMixin."""
-        pass
-
     def capture_device_info(self, q_info, capture_type="post", device_state=None):
         """No-op. Override via DeviceInfoMixin."""
-        pass
-
-    def _execute_device_command(self, q_info, command_type, device_state):
-        """No-op. Override via DeviceCommandMixin."""
         pass
 
     def capture_pre_state_meta_info(self, q_info: dict):

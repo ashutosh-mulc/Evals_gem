@@ -20,7 +20,7 @@ Usage:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from common.question_type import QuestionType
 
@@ -102,41 +102,6 @@ class PreconditionManager:
             logger.error("Precondition setup failed for %s: %s", qt.app_key, e, exc_info=True)
             return self._fail(f"Precondition setup raised: {e}")
 
-    def verify(self, q_info: dict) -> dict:
-        """Verify that preconditions are met before proceeding.
-
-        Returns:
-            {"passed": bool, "details": str}
-        """
-        q_type = q_info.get("question_type", "")
-        qt = QuestionType.parse(q_type)
-
-        if not qt.group or not qt.feature:
-            return {"passed": True, "details": "No precondition needed (no app_key)"}
-
-        from apps import PRECONDITIONS
-        precond_mod = PRECONDITIONS.get(qt.app_key)
-        if precond_mod is None:
-            return {"passed": True, "details": f"No precondition module for '{qt.app_key}'"}
-
-        verify_fn = getattr(precond_mod, "verify", None)
-        if verify_fn is None:
-            return {"passed": True, "details": f"No verify() in precondition module for '{qt.app_key}'"}
-
-        question = q_info.get("question", "")
-        gt_answer = q_info.get("gt_answer", "")
-
-        try:
-            return verify_fn(
-                dm=self.dm,
-                sc=self.sc,
-                qt=qt,
-                question=question,
-                gt_answer=gt_answer,
-            )
-        except Exception as e:
-            logger.error("Precondition verify failed for %s: %s", qt.app_key, e, exc_info=True)
-            return {"passed": False, "details": f"Precondition verify raised: {e}"}
 
     # ── Internal helpers ──────────────────────────────────────────
 

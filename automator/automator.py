@@ -19,7 +19,7 @@ Process Architecture:
        └── judge_worker.judge_worker (CLIENT in screen session)
 """
 
-import os, subprocess, shutil, json, time, datetime, sys, glob
+import os, subprocess, shutil, json, time, sys, glob
 from copy import deepcopy
 import numpy as np
 from tqdm import tqdm
@@ -152,7 +152,7 @@ class EvaluationAutomator:
 
         # Start instrumentation in the background (am instrument -w blocks,
         # so we use Popen to keep it running without blocking the automator)
-        proc = subprocess.Popen(
+        subprocess.Popen(
             [
                 "adb", "-s", companion_device, "shell",
                 "am", "instrument", "-w",
@@ -516,9 +516,6 @@ class PostProcessAutomator:
         self.data_config = JSONFileManager.load_file(config_path)
         self.root_folder_path = self.data_config["paths"]["root_folder"]
         self.n_eval = self.data_config["automator"]["num_evaluations"]
-
-        dataset_name = self.data_config["paths"]["dataset_file"].split("/")[-1]
-        version = ".".join(dataset_name.split("_")[-1].split(".")[:-1])
     
     def sort_responses(self, report_files):
         """Merge and sort responses from multiple evaluation rounds.
@@ -609,9 +606,7 @@ class PostProcessAutomator:
 
         eval_ids = [data[0]["eval_id"] for data in report]; report_dict = {data[0]["eval_id"]: data for data in report}
         
-        exp_name = self.data_config["paths"]["dataset_file"].split("/")[-2]
         textual_summary = open(os.path.join(self.root_folder_path, "summary_report.txt"), 'w')
-        ratings = []; overall_times = []; qa_times =[]; vqa_times = []; hallucination_times = []
         for eval_id in eval_ids:
             eval_q_rounds = report_dict[eval_id]
             summary_report[eval_q_rounds[0]["eval_type"]] = summary_report.get(eval_q_rounds[0]["eval_type"], dict())

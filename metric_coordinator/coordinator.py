@@ -1,6 +1,5 @@
-import json, time, sys, os
+import json, sys, os
 import queue
-import zmq
 import threading
 from copy import deepcopy
 from tqdm import tqdm
@@ -65,8 +64,6 @@ class MetricCoordinator:
 
             msg = json.loads(encoded_msg.decode())
 
-            last_msg_recieved = int(time.time())
-
             if msg["msg_type"] == "REQUEST":
                 logging.info("Received msg from agent_tester")
 
@@ -127,8 +124,6 @@ class MetricCoordinator:
             
 
             msg = json.loads(encoded_msg.decode())
-
-            last_msg_recieved = int(time.time())
 
             if msg["msg_type"] == "REQUEST":
                 logging.info("Received msg from judge_worker")

@@ -14,7 +14,6 @@ Requires the host class to provide:
 from __future__ import annotations
 
 import os
-import subprocess
 import logging
 
 logger = logging.getLogger(__name__)

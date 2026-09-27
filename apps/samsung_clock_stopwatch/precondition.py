@@ -51,13 +51,3 @@ def setup(dm, sc, qt, question, gt_answer):
         return report(passed=False, failed=[f"Failed to start stopwatch: {e}"])
 
 
-def verify(dm, sc, qt, question, gt_answer):
-    action = qt.action
-    if action not in _NEEDS_RUNNING_STOPWATCH:
-        return {"passed": True, "details": f"No precondition for action='{action}'"}
-
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
-    state = xrclaw_dm.stopwatch.get_state()
-    if state.is_running:
-        return {"passed": True, "details": "Stopwatch is running"}
-    return {"passed": False, "details": "Stopwatch is not running"}

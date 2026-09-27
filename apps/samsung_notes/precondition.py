@@ -73,18 +73,3 @@ def setup(dm, sc, qt, question, gt_answer):
         return report(passed=False, failed=[f"Failed to create note '{title}': {e}"])
 
 
-def verify(dm, sc, qt, question, gt_answer):
-    """Verify that the precondition note exists."""
-    action = qt.action
-    if action not in _NEEDS_EXISTING_NOTE:
-        return {"passed": True, "details": f"No precondition for action='{action}'"}
-
-    title = extract_title_from_gt(gt_answer)
-    if not title:
-        return {"passed": False, "details": "Could not extract note title"}
-
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
-    notes = xrclaw_dm.notes.find_notes(title)
-    if notes:
-        return {"passed": True, "details": f"Note '{title}' exists"}
-    return {"passed": False, "details": f"Note '{title}' not found"}

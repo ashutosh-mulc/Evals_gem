@@ -3,7 +3,7 @@ from judge_worker.judge_prompts import *
 from judge_worker.judge_response_parser import parse_judge_response
 from judge_worker.device_info_filter import filter_device_info
 import requests
-import json, re
+import json
 import logging
 import os
 import warnings
@@ -672,12 +672,6 @@ class ResponseScorer:
 
         error_type = 0; response = ""
         start_time = 25; end_time = 0
-
-        # Extract app name to check if this is a task that may not produce a spoken response
-        parts = question_type.lower().split("_") if question_type else []
-        group = parts[1] if len(parts) >= 2 else ""
-        feature = parts[2] if len(parts) >= 3 else ""
-
 
         ai_response_text = stt_json["text"]
         if ai_response_text:

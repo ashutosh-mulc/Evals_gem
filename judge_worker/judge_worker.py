@@ -1,5 +1,4 @@
-import zmq, json, time, sys, os
-import threading, warnings
+import json, time, sys, os
 import logging
 
 from judge_worker.response_scorer import ResponseScorer

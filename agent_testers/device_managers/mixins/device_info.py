@@ -16,7 +16,6 @@ from __future__ import annotations
 import os
 import json
 import time
-import subprocess
 import logging
 
 logger = logging.getLogger(__name__)

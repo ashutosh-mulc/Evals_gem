@@ -25,13 +25,10 @@ import json
 import logging
 from typing import Optional, Tuple
 
-from apps import JUDGE_HANDLERS, get_app_key
-from apps.judge_helpers import parse_question_type, get_device_state, get_flag
+from apps import JUDGE_HANDLERS
+from apps.judge_helpers import parse_question_type
 
 logger = logging.getLogger(__name__)
-
-# Rating threshold below which caller should fall back to VLM
-BAD_RATING_THRESHOLD = 3
 
 
 class DeterministicJudge:
@@ -57,7 +54,7 @@ class DeterministicJudge:
     @classmethod
     def can_handle(cls, question_type: str) -> bool:
         """Check if this question_type can be evaluated deterministically."""
-        app, task = cls._parse_question_type(question_type)
+        app, task = parse_question_type(question_type)
         return (app, task) in cls.HANDLER_REGISTRY
 
     def evaluate(
@@ -71,7 +68,7 @@ class DeterministicJudge:
 
         Returns (response_json, entropy_metrics) if handled, None if unsupported.
         """
-        app, task = self._parse_question_type(question_type)
+        app, task = parse_question_type(question_type)
         handler_fn = self.HANDLER_REGISTRY.get((app, task))
 
         if not handler_fn:
@@ -110,20 +107,3 @@ class DeterministicJudge:
         }
 
         return response_json, entropy_metrics
-
-    # ── Question type parsing ──────────────────────────────────────
-
-    @staticmethod
-    def _parse_question_type(question_type: str) -> Tuple[str, str]:
-        """Parse question_type into (app, task)."""
-        return parse_question_type(question_type)
-
-    # ── Static helpers kept for backward compat ───────────────────
-
-    @staticmethod
-    def _get_device_state(metadata: dict, when: str = "post") -> dict:
-        return get_device_state(metadata, when)
-
-    @staticmethod
-    def _get_flag(metadata: dict, flag_name: str) -> bool:
-        return get_flag(metadata, flag_name)

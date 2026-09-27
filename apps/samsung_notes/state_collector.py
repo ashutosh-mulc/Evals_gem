@@ -147,7 +147,6 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
                     post_content = (note.content or "").lower().strip()
                     if pre_content and pre_content in post_content and len(post_content) > len(pre_content):
                         content_appended = True
-                    gt_lower = gt_answer.lower()
                     new_text = extract_content_from_gt(gt_answer)
                     if new_text and new_text in post_content:
                         content_appended = True

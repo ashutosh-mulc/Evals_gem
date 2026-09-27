@@ -1,5 +1,4 @@
 import uuid
-from enum import Enum, auto
 
 message_type = [
     "REQUEST",

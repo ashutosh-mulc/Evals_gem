@@ -9,7 +9,7 @@ collector class. Each function is a standalone utility — no ``self``.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 
 # ── Keyword / content extraction ──────────────────────────────────

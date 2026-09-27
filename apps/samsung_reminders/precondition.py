@@ -61,17 +61,3 @@ def setup(dm, sc, qt, question, gt_answer):
         return report(passed=False, failed=[f"Failed to create reminder '{title}': {e}"])
 
 
-def verify(dm, sc, qt, question, gt_answer):
-    action = qt.action
-    if action not in _NEEDS_EXISTING_REMINDER:
-        return {"passed": True, "details": f"No precondition for action='{action}'"}
-
-    title = extract_title_from_gt(gt_answer)
-    if not title:
-        return {"passed": False, "details": "Could not extract reminder title"}
-
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
-    reminders = xrclaw_dm.reminders.find_reminders(title)
-    if reminders:
-        return {"passed": True, "details": f"Reminder '{title}' exists"}
-    return {"passed": False, "details": f"Reminder '{title}' not found"}

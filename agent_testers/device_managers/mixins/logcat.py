@@ -28,7 +28,6 @@ from utils.log_analyzer import LogcatAnalyzer, BUILTIN_PROFILES
 logger = logging.getLogger(__name__)
 
 
-
 class LogcatMixin:
     """Mixin for logcat capture, audio/image file management, and camera detection.
 
@@ -321,11 +320,3 @@ class LogcatMixin:
         subprocess.run(command, shell=True)
         print(command)
 
-    def _toggle_jinju_query_image_dump(self):
-        """Enable debug image dump on the Jinju device."""
-        command = (
-            f"adb -s {self.jinju_device} shell"
-            " setprop persist.microxr.camera.debug.save_decoded_stream_images true"
-        )
-        subprocess.run(command, shell=True)
-        print(command)

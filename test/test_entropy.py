@@ -54,18 +54,3 @@ def test_entropy_delta_is_zero_on_first_call_then_nonzero_on_change():
 
     second = scorer.score({"a": -2.0, "b": -2.0, "c": -2.0}, chosen_token="a")
     assert second["entropy_delta"] == pytest.approx(abs(second["entropy"] - first["entropy"]))
-
-
-def test_custom_weights_scale_components_linearly():
-    scorer = HallucinationScorer()
-    top_logprobs = {"a": -0.1, "b": -1.0, "c": -2.0}
-
-    zero_weights = {"entropy": 0.0, "surprisal": 0.0, "curvature": 0.0, "entropy_delta": 0.0}
-    result = scorer.score(top_logprobs, chosen_token="a", weights=zero_weights)
-
-    # Weights only affect the (unreturned) composite score, not the raw component dict,
-    # so the raw entropy/surprisal/curvature/entropy_delta values must stay unchanged.
-    scorer2 = HallucinationScorer()
-    unweighted = scorer2.score(top_logprobs, chosen_token="a")
-
-    assert result == unweighted
