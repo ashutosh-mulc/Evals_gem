@@ -118,20 +118,12 @@ class DeviceCommandMixin:
 
         elif action == "capture_notifications_screenshot":
             # Open notification shade, screenshot
-            # Uses the action list from APP_CONFIGS["device"]["notification"]["actions"]
-        
             from common.question_type import QuestionType
-            device_config = APP_CONFIGS.get("device", {})
-            notif_config = device_config.get("notification", {})
-            app_config = {
-                "package_name": notif_config.get("package_name", ""),
-                "activity_name": notif_config.get("activity_name", ""),
-                "tasks": notif_config.get("actions", {}),
-            }
+            notif_actions = APP_CONFIGS.get("device", {}).get("notification", {}).get("actions", {})
             # Use the action from the question type (read/notread/auto) as the mode
             qt = QuestionType.parse(q_info.get("question_type", ""))
-            mode = qt.action if qt.action in app_config["tasks"] else "read"
-            self._execute_app_tasks("device", app_config, mode)
+            mode = qt.action if qt.action in notif_actions else "read"
+            self._run_app_tasks("device", "notification", "device", mode)
             # capture_post_state_meta_info moves this into post_state_screenshots
             if os.path.exists(os.path.join(self.log_folder, "app_screenshot.png")):
                 result["action"] = "notification_screenshot_captured"

@@ -64,20 +64,9 @@ class DeviceManager(AppTasksMixin, StateCollectMixin, DeviceManagerTemplate):
         # ── Step 2: Execute app tasks from config (ALWAYS runs) ───
         # This opens the app, navigates, takes screenshot, and closes app.
         # Runs regardless of verification outcome so VLM judge has a screenshot.
-        from apps import get_app_info, get_task_list
-
-        app_info = get_app_info(q_type)
-        task_list = get_task_list(q_type)
-        if app_info and task_list:
-            app_config = {
-                "package_name": app_info["package_name"],
-                "activity_name": app_info["activity_name"],
-                "tasks": {app_eval_mode: task_list},
-            }
-            self._execute_app_tasks(q_type, app_config, app_eval_mode)
-        else:
+        if not self._run_app_tasks(qt.group, qt.feature, q_type, app_eval_mode,
+                                    fallback_screenshot=True, mode_fallback=qt.action_with_suffix):
             print(f"App config not found for {q_type} (app_name={app_name}, mode={app_eval_mode})")
-            self._pull_screenshot("/sdcard/Pictures/app_screenshot.png")
 
         # ── Step 3: Store screenshot path ───────────────────────────
         app_screenshot = os.path.join(self.log_folder, "app_screenshot.png")

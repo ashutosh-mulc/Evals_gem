@@ -38,6 +38,37 @@ class AppTasksMixin:
             "to use shared app interaction methods"
         )
 
+    def _run_app_tasks(self, group: str, feature: str, app_key: str, mode: str,
+                        fallback_screenshot: bool = False, mode_fallback: str = None) -> bool:
+        """Look up the (group, feature) app config and run its tasks for `mode`
+        (or `mode_fallback` if `mode` has no task list — e.g. a multi-word action
+        like "thread_read" registered under the full key).
+
+        Returns True if a config was found and tasks were run. If not and
+        fallback_screenshot is set, takes a generic screenshot instead (so the
+        VLM judge still has something to look at) and returns False.
+        """
+        from apps import APP_CONFIGS
+
+        feature_config = APP_CONFIGS.get(group, {}).get(feature)
+        if not feature_config:
+            if fallback_screenshot:
+                print(f"App '{group}/{feature}' not found in APP_CONFIGS! Taking fallback screenshot.")
+                self._pull_screenshot("/sdcard/Pictures/app_screenshot.png")
+            return False
+
+        actions = feature_config.get("actions", {})
+        if mode not in actions and mode_fallback and mode_fallback in actions:
+            mode = mode_fallback
+
+        app_config = {
+            "package_name": feature_config.get("package_name", ""),
+            "activity_name": feature_config.get("activity_name", ""),
+            "tasks": actions,
+        }
+        self._execute_app_tasks(app_key, app_config, mode)
+        return True
+
     def _execute_app_tasks(self, app_name: str, app_config: dict, app_eval_mode: str):
         """Execute app-specific tasks defined in the app config.
 

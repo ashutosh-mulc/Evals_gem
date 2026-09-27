@@ -85,8 +85,7 @@ class AppMetaInfoMixin:
         """
         from utils.adb_client import AdbClient
         from common.question_type import QuestionType
-        from apps import APP_CONFIGS
-
+        
         adb = AdbClient()
         assert adb.is_device_online(self.companion_device), \
             f"Device {self.companion_device} NOT online!"
@@ -97,15 +96,7 @@ class AppMetaInfoMixin:
 
 
         # Execute app tasks and capture screenshot
-        group_config = APP_CONFIGS.get(qt.group, {})
-        feature_config = group_config.get(qt.feature)
-        if feature_config:
-            app_config = {
-                "package_name": feature_config.get("package_name", ""),
-                "activity_name": feature_config.get("activity_name", ""),
-                "tasks": feature_config.get("actions", {}),
-            }
-            self._execute_app_tasks(qt.app_key, app_config, app_eval_mode)
+        self._run_app_tasks(qt.group, qt.feature, qt.app_key, app_eval_mode)
 
         # Save to pre_state_screenshots
         new_path = self._save_screenshot_to_state_dir(q_info, "pre_state")
@@ -123,8 +114,7 @@ class AppMetaInfoMixin:
         """
         from utils.adb_client import AdbClient
         from common.question_type import QuestionType
-        from apps import APP_CONFIGS
-
+        
         adb = AdbClient()
         assert adb.is_device_online(self.companion_device), \
             f"Device {self.companion_device} NOT online!"
@@ -158,18 +148,7 @@ class AppMetaInfoMixin:
             # Execute app tasks from config.py (open_activity + screenshot) for
             # device queries so the post-state screenshot shows the relevant UI
             # (e.g., volume slider) for judge verification.
-            group_config = APP_CONFIGS.get(qt.group, {})
-            feature_config = group_config.get(qt.feature)
-            if feature_config:
-                app_config = {
-                    "package_name": feature_config.get("package_name", ""),
-                    "activity_name": feature_config.get("activity_name", ""),
-                    "tasks": feature_config.get("actions", {}),
-                }
-                self._execute_app_tasks(qt.app_key, app_config, app_eval_mode)
-            else:
-                print(f"App '{qt.group}/{qt.feature}' not found in APP_CONFIGS! Taking fallback screenshot.")
-                self._pull_screenshot("/sdcard/Pictures/app_screenshot.png")
+            self._run_app_tasks(qt.group, qt.feature, qt.app_key, app_eval_mode, fallback_screenshot=True)
 
             # Save to post_state_screenshots
             new_path = self._save_screenshot_to_state_dir(q_info, "post_state")
@@ -189,18 +168,7 @@ class AppMetaInfoMixin:
         self._collect_state(q_info)
 
         # Execute app tasks and capture screenshot
-        group_config = APP_CONFIGS.get(qt.group, {})
-        feature_config = group_config.get(qt.feature)
-        if feature_config:
-            app_config = {
-                "package_name": feature_config.get("package_name", ""),
-                "activity_name": feature_config.get("activity_name", ""),
-                "tasks": feature_config.get("actions", {}),
-            }
-            self._execute_app_tasks(qt.app_key, app_config, app_eval_mode)
-        else:
-            print(f"App '{qt.group}/{qt.feature}' not found in APP_CONFIGS! Taking fallback screenshot.")
-            self._pull_screenshot("/sdcard/Pictures/app_screenshot.png")
+        self._run_app_tasks(qt.group, qt.feature, qt.app_key, app_eval_mode, fallback_screenshot=True)
 
         # Save to post_state_screenshots
         new_path = self._save_screenshot_to_state_dir(q_info, "post_state")
