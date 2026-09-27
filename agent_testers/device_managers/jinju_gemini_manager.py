@@ -86,32 +86,26 @@ class DeviceManager(
         return report
 
 
+    # connectivity mode -> (wifi, mobile_data, bluetooth)
+    _CONNECTIVITY_STATES = {
+        "offline":      (False, False, True),   # paired, no internet
+        "disconnected": (True,  True,  False),  # internet, not paired to Jinju
+        "online":       (True,  True,  True),   # paired and online
+    }
+
     def set_connectivity(self, connectivity: str) -> None:
-        """Setup companion device connectivity based on question type.
-
-        OFFLINE:       Jinju is paired but no internet on companion device.
-        DISCONNECTED:  Jinju is disconnected from companion device.
-        ONLINE:        Jinju is paired and internet is also available.
-        """
-        if connectivity.lower() == "offline":
-            self._adb.set_wifi(self.companion_device, False)
-            self._adb.set_mobile_data(self.companion_device, False)
-            self._adb.set_bluetooth(self.companion_device, True)
-            print("Device state: OFFLINE (wifi off, mobile data off, bluetooth on)")
-
-        elif connectivity.lower() == "disconnected":
-            self._adb.set_wifi(self.companion_device, True)
-            self._adb.set_mobile_data(self.companion_device, True)
-            self._adb.set_bluetooth(self.companion_device, False)
-            print("Device state: DISCONNECTED (wifi on, mobile data on, bluetooth off)")
-
-        elif connectivity.lower() == "online":
-            self._adb.set_wifi(self.companion_device, True)
-            self._adb.set_mobile_data(self.companion_device, True)
-            self._adb.set_bluetooth(self.companion_device, True)
-            print("Device state: ONLINE (wifi on, mobile data on, bluetooth on)")
-        else:
+        """Set companion device wifi/mobile-data/bluetooth for the question's connectivity mode."""
+        state = self._CONNECTIVITY_STATES.get(connectivity.lower())
+        if state is None:
             print(f"Connectivity {connectivity} IS NOT VALID !\nContinuing in current state..,")
+        else:
+            wifi, mobile_data, bluetooth = state
+            self._adb.set_wifi(self.companion_device, wifi)
+            self._adb.set_mobile_data(self.companion_device, mobile_data)
+            self._adb.set_bluetooth(self.companion_device, bluetooth)
+            print(f"Device state: {connectivity.upper()} "
+                  f"(wifi {'on' if wifi else 'off'}, mobile data {'on' if mobile_data else 'off'}, "
+                  f"bluetooth {'on' if bluetooth else 'off'})")
 
         time.sleep(1)
 
