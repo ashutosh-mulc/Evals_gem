@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from ..helpers import (
     result,
-    get_foreground_package_with_fallback,
+    verify_launch,
 )
 
 APP_KEYS = ("call",)
@@ -75,17 +75,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
 
     # ── Launch mode: verify dialer is in foreground ──
     if mode == "launch":
-        fg_info = get_foreground_package_with_fallback(dm)
-        foreground_pkg = fg_info["resolved"]
-        actual_state = {"foreground_info": fg_info}
-        verified = foreground_pkg is not None and PACKAGE_NAME in (foreground_pkg or "")
-        rating = 5 if verified else 0
-        analysis = (
-            f"Launch verification: foreground app is '{foreground_pkg}'. "
-            f"Expected Samsung Dialer ('{PACKAGE_NAME}'). "
-            f"{'App is in foreground.' if verified else 'Samsung Dialer is NOT in foreground.'}"
-        )
-        return result(app_name, verified, rating, analysis, actual_state, gt_answer)
+        return verify_launch(dm, app_name, PACKAGE_NAME, "Samsung Dialer", gt_answer)
 
     # ── Query post-state call records ──
     post_records = _find_call_records(dm)

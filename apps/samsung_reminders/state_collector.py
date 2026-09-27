@@ -23,7 +23,8 @@ from ..helpers import (
     pre_items_by_id,
     new_or_changed,
     result,
-    get_foreground_package_with_fallback,
+    verify_launch,
+    PRE_FLAG,
 )
 
 APP_KEYS = ("samsungreminder",)
@@ -67,17 +68,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
 
     # ── Launch mode: verify Samsung Reminder is in foreground ──
     if mode == "launch":
-        fg_info = get_foreground_package_with_fallback(dm)
-        foreground_pkg = fg_info["resolved"]
-        actual_state = {"foreground_info": fg_info}
-        verified = foreground_pkg is not None and PACKAGE_NAME in (foreground_pkg or "")
-        rating = 5 if verified else 0
-        analysis = (
-            f"Launch verification: foreground app is '{foreground_pkg}'. "
-            f"Expected Samsung Reminder ('{PACKAGE_NAME}'). "
-            f"{'App is in foreground.' if verified else 'Samsung Reminder is NOT in foreground.'}"
-        )
-        return result(app_name, verified, rating, analysis, actual_state, gt_answer)
+        return verify_launch(dm, app_name, PACKAGE_NAME, "Samsung Reminder", gt_answer)
 
     # ── Read / Noread mode: fetch reminder content for LLM judge comparison ──
     if mode in ("read", "noread"):
@@ -119,7 +110,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
     }
 
     pre_by_id = pre_items_by_id(pre_state, "reminders")
-    pre_flag = "" if pre_by_id is not None else " [No pre-query snapshot; existence-only check, weaker guarantee.]"
+    pre_flag = "" if pre_by_id is not None else PRE_FLAG
 
     if mode == "delete":
         matching_post = [r for r in reminders if search_term and search_term in r.title.lower()]

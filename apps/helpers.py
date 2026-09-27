@@ -190,56 +190,43 @@ def filter_holidays(events) -> list:
 VERIFIED_METHODS = {"xrclaw", "xrclaw_read"}
 
 
-def result(app_name, verified, rating, analysis, actual_state, expected) -> dict:
-    """Build a successful state collector verification result."""
+def _build_result(method, app_name, expected, verified=False, rating=0, analysis="", actual_state=None) -> dict:
+    """Shared shape for every state collector result dict."""
     return {
-        "method": "xrclaw",
+        "method": method,
         "app_name": app_name,
         "verified": verified,
         "rating": rating,
         "analysis": analysis,
-        "actual_state": actual_state,
+        "actual_state": actual_state if actual_state is not None else {},
         "expected": expected,
     }
+
+
+def result(app_name, verified, rating, analysis, actual_state, expected) -> dict:
+    """Build a successful state collector verification result."""
+    return _build_result("xrclaw", app_name, expected, verified, rating, analysis, actual_state)
 
 
 def unsupported_result(app_name, expected) -> dict:
     """Build a result for unsupported apps (caller should fall back to LLM)."""
-    return {
-        "method": "xrclaw_unsupported",
-        "app_name": app_name,
-        "verified": False,
-        "rating": 0,
-        "analysis": f"App '{app_name}' is not supported by state collector verification.",
-        "actual_state": {},
-        "expected": expected,
-    }
+    return _build_result(
+        "xrclaw_unsupported", app_name, expected,
+        analysis=f"App '{app_name}' is not supported by state collector verification.",
+    )
 
 
 def error_result(app_name, expected, error_msg) -> dict:
     """Build an error result (caller should fall back to LLM)."""
-    return {
-        "method": "xrclaw_error",
-        "app_name": app_name,
-        "verified": False,
-        "rating": 0,
-        "analysis": f"State collector verification error: {error_msg}",
-        "actual_state": {},
-        "expected": expected,
-    }
+    return _build_result(
+        "xrclaw_error", app_name, expected,
+        analysis=f"State collector verification error: {error_msg}",
+    )
 
 
 def xrclaw_unavailable_result(app_name, analysis, actual_state, expected) -> dict:
     """Build a result for queries that XRClaw cannot verify (fall back to VLM with gt_answer)."""
-    return {
-        "method": "xrclaw_unavailable",
-        "app_name": app_name,
-        "verified": False,
-        "rating": 0,
-        "analysis": analysis,
-        "actual_state": actual_state,
-        "expected": expected,
-    }
+    return _build_result("xrclaw_unavailable", app_name, expected, analysis=analysis, actual_state=actual_state)
 
 
 # ── Foreground detection ──────────────────────────────────────────
@@ -362,3 +349,24 @@ def get_foreground_package_with_fallback(dm) -> dict:
 
     return info
 
+
+
+# ── Shared verify() building blocks ─────────────────────────────────
+
+# Appended to the analysis when verification had no pre-query snapshot to
+# diff against (existence-only check — a weaker guarantee than a pre/post diff).
+PRE_FLAG = " [No pre-query snapshot; existence-only check, weaker guarantee.]"
+
+
+def verify_launch(dm, app_key: str, package_name: str, display_name: str, gt_answer: str) -> dict:
+    """Verify `display_name` (`package_name`) is in the foreground. Shared by every
+    app's `launch` mode."""
+    fg_info = get_foreground_package_with_fallback(dm)
+    foreground_pkg = fg_info["resolved"]
+    verified = foreground_pkg is not None and package_name in (foreground_pkg or "")
+    analysis = (
+        f"Launch verification: foreground app is '{foreground_pkg}'. "
+        f"Expected {display_name} ('{package_name}'). "
+        f"{'App is in foreground.' if verified else f'{display_name} is NOT in foreground.'}"
+    )
+    return result(app_key, verified, 5 if verified else 0, analysis, {"foreground_info": fg_info}, gt_answer)

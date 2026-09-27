@@ -12,7 +12,7 @@ not-running → running for start) instead of a bare existence check.
 
 from __future__ import annotations
 
-from ..helpers import result, get_foreground_package_with_fallback
+from ..helpers import PRE_FLAG, result, verify_launch
 
 APP_KEYS = ("clockstopwatch",)
 PACKAGE_NAME = "com.sec.android.app.clockpackage"
@@ -29,17 +29,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
 
     # ── Launch mode: verify Clock app is in foreground ──
     if mode == "launch":
-        fg_info = get_foreground_package_with_fallback(dm)
-        foreground_pkg = fg_info["resolved"]
-        actual_state = {"foreground_info": fg_info}
-        verified = foreground_pkg is not None and PACKAGE_NAME in (foreground_pkg or "")
-        rating = 5 if verified else 0
-        analysis = (
-            f"Launch verification: foreground app is '{foreground_pkg}'. "
-            f"Expected Clock ('{PACKAGE_NAME}'). "
-            f"{'App is in foreground.' if verified else 'Clock is NOT in foreground.'}"
-        )
-        return result(app_name, verified, rating, analysis, actual_state, gt_answer)
+        return verify_launch(dm, app_name, PACKAGE_NAME, "Clock", gt_answer)
 
     state = dm.stopwatch.get_state()
     actual_state = state.to_dict()
@@ -52,7 +42,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
         pre_is_running = bool(pre_state.get("is_running"))
         pre_elapsed = pre_state.get("elapsed_ms", 0)
     else:
-        pre_flag = " [No pre-query snapshot; existence-only check, weaker guarantee.]"
+        pre_flag = PRE_FLAG
 
     # ── Read mode: return state for LLM judge comparison ──
     if mode == "read":

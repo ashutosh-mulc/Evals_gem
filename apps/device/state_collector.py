@@ -18,7 +18,7 @@ App keys registered:
 
 from __future__ import annotations
 
-from ..helpers import extract_keyword, pre_items_by_id, result
+from ..helpers import PRE_FLAG, extract_keyword, pre_items_by_id, result
 
 APP_KEYS = ("device", "device_mediacontrol", "notification")
 
@@ -86,7 +86,7 @@ def _verify_media(dm, app_key, mode, question, gt_answer, pre_state=None) -> dic
         pre_playing = bool(pre_state.get("is_playing", False))
         pre_position = pre_state.get("position_ms")
     else:
-        pre_flag = " [No pre-query snapshot; existence-only check, weaker guarantee.]"
+        pre_flag = PRE_FLAG
 
     post_position = state.position_ms
     post_playing = state.is_playing

@@ -17,7 +17,7 @@ gt_answer. Handles all Maps sub-features:
 
 from __future__ import annotations
 
-from ..helpers import result, get_foreground_package_with_fallback, xrclaw_unavailable_result
+from ..helpers import PRE_FLAG, result, verify_launch, xrclaw_unavailable_result
 
 APP_KEYS = ("googlemaps",)
 
@@ -39,18 +39,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
 
     # ── launch mode: verify Maps app is in foreground ──
     if mode == "launch":
-        fg_info = get_foreground_package_with_fallback(dm)
-        maps_pkg = "com.google.android.apps.maps"
-        foreground_pkg = fg_info["resolved"]
-        actual_state = {"foreground_info": fg_info}
-        verified = foreground_pkg is not None and maps_pkg in (foreground_pkg or "")
-        rating = 5 if verified else 0
-        analysis = (
-            f"Launch verification: foreground app is '{foreground_pkg}'. "
-            f"Expected Maps ('{maps_pkg}'). "
-            f"{'App is in foreground.' if verified else 'Maps is NOT in foreground.'}"
-        )
-        return result(app_key, verified, rating, analysis, actual_state, gt_answer)
+        return verify_launch(dm, app_key, "com.google.android.apps.maps", "Maps", gt_answer)
 
     # ── Get current navigation state ──
     state = maps.get_state()
@@ -66,7 +55,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
         pre_is_running = bool(pre_state.get("is_running"))
         pre_stops = pre_state.get("stops", [])
     else:
-        pre_flag = " [No pre-query snapshot; existence-only check, weaker guarantee.]"
+        pre_flag = PRE_FLAG
 
     # ── query mode: place info (hours, rating, distance) ──
     # Always handled by VLM with gt_answer as ground truth.

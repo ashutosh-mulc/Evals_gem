@@ -27,7 +27,8 @@ from ..helpers import (
     pre_items_by_id,
     new_or_changed,
     result,
-    get_foreground_package_with_fallback,
+    verify_launch,
+    PRE_FLAG,
 )
 
 APP_KEYS = ("samsungcalendar",)
@@ -57,17 +58,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
 
     # ── Launch mode: verify Samsung Calendar is in foreground ──
     if mode == "launch":
-        fg_info = get_foreground_package_with_fallback(dm)
-        foreground_pkg = fg_info["resolved"]
-        actual_state = {"foreground_info": fg_info}
-        verified = foreground_pkg is not None and PACKAGE_NAME in (foreground_pkg or "")
-        rating = 5 if verified else 0
-        analysis = (
-            f"Launch verification: foreground app is '{foreground_pkg}'. "
-            f"Expected Samsung Calendar ('{PACKAGE_NAME}'). "
-            f"{'App is in foreground.' if verified else 'Samsung Calendar is NOT in foreground.'}"
-        )
-        return result(app_name, verified, rating, analysis, actual_state, gt_answer)
+        return verify_launch(dm, app_name, PACKAGE_NAME, "Samsung Calendar", gt_answer)
 
     # ── Read mode: search for matching events, but always send all events to VLM ──
     if mode == "read":
@@ -146,7 +137,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
     # ── Create/Delete/Modify: pure set difference, NO search term ──
     events = _filter_holidays(dm.calendar.find_events())
     pre_by_id = pre_items_by_id(pre_state, "events")
-    pre_flag = "" if pre_by_id is not None else " [No pre-query snapshot; existence-only check, weaker guarantee.]"
+    pre_flag = "" if pre_by_id is not None else PRE_FLAG
 
     def _fmt_time(event):
         """Format event start date for analysis string."""

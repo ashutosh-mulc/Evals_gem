@@ -14,7 +14,7 @@ When pre_state is available, requires a state transition (e.g.
 
 from __future__ import annotations
 
-from ..helpers import result, get_foreground_package_with_fallback
+from ..helpers import PRE_FLAG, result, verify_launch
 
 APP_KEYS = ("clocktimer",)
 PACKAGE_NAME = "com.sec.android.app.clockpackage"
@@ -63,17 +63,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
 
     # ── Launch mode: verify Clock app is in foreground ──
     if mode == "launch":
-        fg_info = get_foreground_package_with_fallback(dm)
-        foreground_pkg = fg_info["resolved"]
-        actual_state = {"foreground_info": fg_info}
-        verified = foreground_pkg is not None and PACKAGE_NAME in (foreground_pkg or "")
-        rating = 5 if verified else 0
-        analysis = (
-            f"Launch verification: foreground app is '{foreground_pkg}'. "
-            f"Expected Clock ('{PACKAGE_NAME}'). "
-            f"{'App is in foreground.' if verified else 'Clock is NOT in foreground.'}"
-        )
-        return result(app_name, verified, rating, analysis, actual_state, gt_answer)
+        return verify_launch(dm, app_name, PACKAGE_NAME, "Clock", gt_answer)
 
     timer_state = dm.timers.get_state()
     actual_state = timer_state.to_dict()
@@ -89,9 +79,7 @@ def verify(dm, app_key, mode, question, gt_answer, pre_state=None) -> dict:
         pre_timers = pre_state.get("timers", [])
         pre_count = pre_state.get("count", 0)
         pre_running = pre_state.get("running_count", 0)
-    pre_flag = "" if pre_state else (
-        " [No pre-query snapshot; existence-only check, weaker guarantee.]"
-    )
+    pre_flag = "" if pre_state else PRE_FLAG
 
     timers_desc = _format_timers(timers)
     pre_timers_desc = _format_timers(pre_timers) if pre_state else "(no pre-state)"
