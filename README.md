@@ -54,13 +54,13 @@ The old flat format (e.g. `device_online_battery`) was ambiguous — it couldn't
 
 2. **Structured routing** — The framework parses the question type to automatically determine:
    - Which device to interact with (Jinju glasses vs. companion phone)
-   - Which app to launch and what tasks to perform (`app_config.py` → `get_task_list()`)
+   - Which app to launch and what tasks to perform (`common/question_type.py` → `apps/registry.py::get_task_list()`)
    - Which deterministic judge handler to invoke (`deterministic_judge.py` → `HANDLER_REGISTRY`)
-   - Which XRClaw verification method to use (`get_xrclaw_app_key()`)
+   - Which app key an app_key-keyed lookup should use (`apps/registry.py::get_app_key()`)
 
-3. **Compound features** — Some features span multiple words (e.g. `clock_timer`, `clock_alarm`, `clock_stopwatch`). The parser in `app_config.py` handles this by checking if `parts[2]_parts[3]` matches a known compound feature before falling back to a 4-part parse.
+3. **Compound features** — Some features span multiple words (e.g. `clock_timer`, `clock_alarm`, `clock_stopwatch`). `QuestionType.parse()` in `common/question_type.py` handles this by checking if `parts[2]_parts[3]` matches a known compound feature before falling back to a 4-part parse.
 
-4. **Legacy compatibility** — The `XRCLAW_APP_KEY_MAP` in `app_config.py` bridges the new hierarchical format to legacy XRClaw app keys (e.g. `("samsung", "notes")` → `"samsungnote"`), so XRClaw code doesn't need to change.
+4. **Legacy app keys** — `apps/registry.py::APP_KEY_MAP` bridges the hierarchical format to legacy XRClaw app keys (e.g. `("samsung", "notes")` → `"samsungnote"`), so XRClaw code doesn't need to change.
 
 ### Connectivity Modes
 
@@ -78,7 +78,7 @@ The old flat format (e.g. `device_online_battery`) was ambiguous — it couldn't
 | `apps/{app}/judge.py` | `HANDLERS` dict maps `(app_key, action)` → handler function (auto-registered) |
 | `apps/{app}/state_collector.py` | `capture_pre(dm)`, `verify(dm, ...)` — app state collection |
 | `apps/{app}/config.py` | `PACKAGE_NAME`, `ACTIVITY_NAME`, `ACTIONS` — app configuration |
-| `apps/judge_helpers.py` | Shared helper functions: `handle_launch()`, `handle_app_state()`, `handle_camera()`, `handle_video()`, `parse_question_type()` |
+| `apps/judge_helpers.py` | Shared helper functions: `handle_launch()`, `handle_app_state()`, `handle_camera()`, `handle_video()` |
 | `judge_worker/deterministic_judge.py` | `DeterministicJudge` class — routes to handlers via `JUDGE_HANDLERS`, falls back to VLM |
 
 ---
@@ -99,17 +99,17 @@ The app registry (`apps/registry.py`) auto-discovers all app subdirectories and 
 - `CONSENT_RULES` — {(feature, action) → [(wav, pause, wait), ...]}
 - `PRECONDITIONS` — {app_key → precondition module}
 
-Each app directory exports:
-- `__init__.py` — `APP_KEY`, `GROUP`, `FEATURE`, `SKIP`
-- `config.py` — `PACKAGE_NAME`, `ACTIVITY_NAME`, `ACTIONS`
+Each app directory exports (all but `config.py` are optional):
+- `config.py` — `APP_KEY`, `GROUP`, `FEATURE` (or `FEATURES`), `PACKAGE_NAME`, `ACTIVITY_NAME`, `ACTIONS`
 - `state_collector.py` — `APP_KEYS`, `capture_pre(dm)`, `verify(dm, ...)`
 - `judge.py` — `HANDLERS` dict + handler functions
-- `prompt.py` — `PROMPT` string (or `None`)
-- `consent.py` — `CONSENT_RULES` dict (optional)
+- `prompt.json` — LLM judge prompt (string, dict, list, or a `{"type": "dynamic", ...}` device lambda)
+- `consent.py` — `CONSENT_RULES` dict
+- `precondition.py` — `setup(dm, sc, qt, question, gt_answer)`
 
 ### XRClawStateCollector — Thin Wrapper
 
-The `XRClawStateCollector` (in `agent_testers/device_managers/xrclaw_state_collector.py`, ~315 lines) is a **thin wrapper** that:
+The `XRClawStateCollector` (in `agent_testers/device_managers/xrclaw_state_collector.py`, ~225 lines) is a **thin wrapper** that:
 1. Initializes the XRClaw `DeviceManager`
 2. Provides foreground detection with ADB fallback
 3. Delegates all app-specific logic to registry modules via `STATE_COLLECTORS`
@@ -181,16 +181,12 @@ To add a new app to the framework:
 
 2. **Add these files:**
 
-   **`__init__.py`** — App metadata:
+   **`config.py`** — App metadata + configuration:
    ```python
    APP_KEY = "my_app"
    GROUP = "thirdparty"
    FEATURE = "myapp"
-   SKIP = False  # Set True to skip this app in evaluations
-   ```
 
-   **`config.py`** — App configuration:
-   ```python
    PACKAGE_NAME = "com.example.myapp"
    ACTIVITY_NAME = ".MainActivity"
    ACTIONS = {
@@ -263,13 +259,14 @@ To add a new app to the framework:
 
    **`precondition.py`** — Preconditions setup (optional):
    ```python
-   def setup(q_info: dict) -> dict:
-       """Set up preconditions before the agent acts."""
-       return {"passed": True, "set": ["precondition1"]}
+   from apps.precondition_helpers import report
 
-   def verify(q_info: dict) -> bool:
-       """Verify preconditions are met."""
-       return True
+   def setup(dm, sc, qt, question, gt_answer) -> dict:
+       """Put the device into the state gt_answer assumes, before the agent acts.
+
+       dm: DeviceManager. sc: state collector (or None). qt: parsed QuestionType.
+       """
+       return report(passed=True, set_items=["precondition1"])
    ```
 
 3. **That's it!** The registry auto-discovers the app on import. No manual registration needed — handlers are automatically added to `JUDGE_HANDLERS` via `apps/registry.py`.
@@ -471,9 +468,11 @@ forwards from one FIFO pair to the other."
 What happens between reading one line of the dataset and writing one graded result:
 
 ```
-1. question_loader.load_question()
-     base64-decode + JSON-parse a dataset.jsonl line; requires "question_type"
-     (e.g. "online_samsung_notes_create")
+1. metric_coordinator/coordinator.py
+     loads dataset.jsonl via JSONLFileManager, sends one row (with
+     "question_type", e.g. "online_samsung_notes_create") to agent_tester
+     over the FIFO; agent_tester.AgentTester._decode_inputs() base64-decodes
+     the row's image/audio fields
         │
         ▼
 2. QuestionType.parse(question_type)            [common/question_type.py]
@@ -649,16 +648,14 @@ Host `services/host/arap_service.py` on the Robotester machine for audio recordi
 
 | Key | Type | Description | Example |
 |-----|------|-------------|---------|
-| `device_manager_type` | string | Device manager type | `"s25-gemini-live"`, `"jinju-gemini"`, `"meta-live"` |
+| `device_manager_type` | string | Device manager type | `"jinju-gemini"`, `"s25-gemini-live"` |
 | `dataset_start_index` | integer | Starting dataset index | `0` |
 | `dataset_end_index` | integer | Ending dataset index | `10000` |
 
-**Device manager types:**
-- `"s25-gemini-live"` — S25 + Gemini Live
-- `"s25-gpt-live"` — S25 + GPT Live
-- `"s25-gemini-upload"` — S25 + Gemini (image upload mode)
-- `"jinju-gemini"` — Jinju + Gemini Live
-- `"meta-live"` — Meta Wayfarer + Meta AI (⚠️ unreliable — Meta often ignores non-human voice)
+**Device manager types** (see `agent_testers/device_managers/DEVICE_MANAGERS`):
+- `"jinju-gemini"` — Jinju glasses + Gemini Live (the primary path)
+- `"s25-gemini-live"` — S25 phone + Gemini Live
+- `"dummy-device-manager"` — no-op manager for pipeline testing without hardware
 
 ### Logger Configuration
 
@@ -746,10 +743,8 @@ Requires `logger.dump_device_logs: true`. Runs a background sampler on-device du
 
 | File | Description |
 |------|-------------|
-| `configs/s25_gemini_live_config.json` | S25 + Gemini Live |
 | `configs/jinju_gemini_config.json` | Jinju + Gemini |
-| `configs/meta_live_config.json` | Meta Wayfarer + Meta AI |
-| `configs/s25_gpt_live_config.json` | S25 + GPT |
+| `configs/s25_gemini_live_config.json` | S25 + Gemini Live |
 
 ---
 
@@ -838,7 +833,7 @@ Volume evaluation tracks **all Android audio streams** (MUSIC, RING, ALARM, NOTI
 
 | File | Role |
 |------|------|
-| `agent_testers/device_managers/device_config.py` | `DeviceInfo.get_volume()` — parses all `STREAM_*` from `dumpsys audio` |
+| `agent_testers/device_managers/adb_device_info.py` | `DeviceInfo.get_volume()` — parses all `STREAM_*` from `dumpsys audio` |
 | `agent_testers/device_managers/jinju_gemini_manager.py` | `reset_media_volume()` — sets all streams to percentage of max |
 | `apps/device/precondition.py` | `_setup_volume()` — per-action starting levels (percentage-based) |
 | `apps/device/judge_rules.py` | `handle_volume()` — multi-stream, any-passes, adaptive threshold |

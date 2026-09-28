@@ -40,7 +40,7 @@ def _setup_dnd(dm, action):
     For 'off' action: start with DND on (so agent can turn it off).
     """
     device = _get_companion_device(dm)
-    xrclaw_dm = getattr(dm, "_dm", None) or dm
+    statecollector_dm = getattr(dm, "_dm", None) or dm
 
     # Determine target state: opposite of what the agent should do
     if action == "on":
@@ -59,15 +59,15 @@ def _setup_dnd(dm, action):
     try:
         # Try XRClaw/mock method first (works for both mock and real devices)
         expected_enabled = (dnd_cmd == "on")
-        if hasattr(xrclaw_dm.device_info, 'set_dnd_mode'):
-            xrclaw_dm.device_info.set_dnd_mode(expected_enabled)
+        if hasattr(statecollector_dm.device_info, 'set_dnd_mode'):
+            statecollector_dm.device_info.set_dnd_mode(expected_enabled)
         else:
             # Fallback to ADB for real devices
             _adb_shell(device, f"cmd notification set_dnd {dnd_cmd}")
         time.sleep(1)
 
         # Verify via XRClaw DeviceInfoApp
-        dnd_state = xrclaw_dm.device_info.get_dnd_mode()
+        dnd_state = statecollector_dm.device_info.get_dnd_mode()
         actual_enabled = dnd_state.enabled
 
         if actual_enabled == expected_enabled:
@@ -263,7 +263,7 @@ def _setup_mediacontrol(dm, action):
     For 'play'/'resume'/'replay': start with media paused.
     """
     device = _get_companion_device(dm)
-    xrclaw_dm = getattr(dm, "_dm", None) or dm
+    statecollector_dm = getattr(dm, "_dm", None) or dm
 
     # Actions that need media playing first (so agent can pause/skip/like/dislike/seek)
     needs_playing = {"pause", "skip", "previous", "like", "dislike", "seek", "seekrelative"}
@@ -286,8 +286,8 @@ def _setup_mediacontrol(dm, action):
             expected_playing = False
 
         # Try XRClaw/mock method first (works for both mock and real devices)
-        if hasattr(xrclaw_dm.device_info, 'set_media_playing'):
-            xrclaw_dm.device_info.set_media_playing(expected_playing)
+        if hasattr(statecollector_dm.device_info, 'set_media_playing'):
+            statecollector_dm.device_info.set_media_playing(expected_playing)
         else:
             # Fallback to ADB for real devices
             # Start YouTube Music playback
@@ -304,7 +304,7 @@ def _setup_mediacontrol(dm, action):
                 time.sleep(1)
 
         # Verify state
-        media = xrclaw_dm.device_info.get_media()
+        media = statecollector_dm.device_info.get_media()
         is_playing = media.get("playing", media.get("is_playing", False))
 
         if is_playing == expected_playing:
@@ -342,11 +342,11 @@ def _setup_notification(dm, action, gt_answer):
     For read/auto: post a test notification derived from gt_answer.
     For notread: clear all notifications so the panel is empty.
     """
-    xrclaw_dm = getattr(dm, "_dm", None) or dm
+    statecollector_dm = getattr(dm, "_dm", None) or dm
 
     if action == "notread":
         try:
-            cleared = xrclaw_dm.notifications.clear_all()
+            cleared = statecollector_dm.notifications.clear_all()
             logger.info("Precondition: cleared %d notification(s) for notread query", cleared)
             return {
                 "passed": True,
@@ -370,7 +370,7 @@ def _setup_notification(dm, action, gt_answer):
             title, content = gt_answer, ""
             if ":" in gt_answer:
                 title, content = gt_answer.split(":", 1)
-            xrclaw_dm.notifications.post_notification(title.strip(), content.strip())
+            statecollector_dm.notifications.post_notification(title.strip(), content.strip())
             logger.info("Precondition: posted notification '%s' for %s query", title, action)
             return {
                 "passed": True,
@@ -420,9 +420,9 @@ def setup(dm, sc, qt, question, gt_answer):
 
     # Get XRClaw device manager — prefer sc._dm, fall back to dm
     # Store it on dm so feature handlers can access it
-    xrclaw_dm = getattr(sc, "_dm", None) if sc else None
-    if xrclaw_dm is not None:
-        dm._dm = xrclaw_dm
+    statecollector_dm = getattr(sc, "_dm", None) if sc else None
+    if statecollector_dm is not None:
+        dm._dm = statecollector_dm
 
     if feature == "dnd":
         return _setup_dnd(dm, action)

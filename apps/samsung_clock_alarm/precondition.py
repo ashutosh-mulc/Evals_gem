@@ -21,12 +21,12 @@ _DEFAULT_ALARM_TIME = "07:00"
 
 def setup(dm, sc, qt, question, gt_answer):
     action = qt.action
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
+    statecollector_dm = getattr(sc, "_dm", None) or dm
 
     # ── Launch: clear all clock state for a clean slate ──
     if action == "launch":
         try:
-            cleared = clear_clock_state(xrclaw_dm)
+            cleared = clear_clock_state(statecollector_dm)
             logger.info("Precondition: cleared %d alarm(s), stopwatch_reset=%s",
                          cleared["alarms"], cleared["stopwatch_reset"])
             return report(
@@ -49,12 +49,12 @@ def setup(dm, sc, qt, question, gt_answer):
         or _DEFAULT_ALARM_TIME
     )
 
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
+    statecollector_dm = getattr(sc, "_dm", None) or dm
     try:
         # Clear any stale alarms from previous queries so the agent sees exactly
         # the alarm we create.
-        cleared = clear_clock_state(xrclaw_dm)
-        xrclaw_dm.alarms.create_alarm(time_str, label="Test Alarm")
+        cleared = clear_clock_state(statecollector_dm)
+        statecollector_dm.alarms.create_alarm(time_str, label="Test Alarm")
         logger.info("Precondition: cleared %d alarm(s), created alarm at %s",
                      cleared["alarms"], time_str)
         return report(

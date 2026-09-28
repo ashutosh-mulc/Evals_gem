@@ -24,9 +24,9 @@ def setup(dm, sc, qt, question, gt_answer):
 
     # ── Launch: clear all reminders to ensure a clean state ──
     if action == "launch":
-        xrclaw_dm = getattr(sc, "_dm", None) or dm
+        statecollector_dm = getattr(sc, "_dm", None) or dm
         try:
-            cleared = xrclaw_dm.reminders.clear_all_reminders()
+            cleared = statecollector_dm.reminders.clear_all_reminders()
             logger.info("Precondition: cleared %d existing reminder(s) before launch", cleared)
             return report(
                 set_items=[f"Cleared {cleared} existing reminder(s) before launch"],
@@ -49,9 +49,9 @@ def setup(dm, sc, qt, question, gt_answer):
 
     description = extract_description_from_gt(gt_answer)
 
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
+    statecollector_dm = getattr(sc, "_dm", None) or dm
     try:
-        xrclaw_dm.reminders.create_reminder(title, description)
+        statecollector_dm.reminders.create_reminder(title, description)
         logger.info("Precondition: created reminder '%s'", title)
         return report(
             set_items=[f"Created reminder '{title}' with description '{description}'"],

@@ -97,7 +97,7 @@ class AgentTester:
 
         self.device_manager = DeviceManager(*dm_args)
 
-        # Initialize XRClaw verifier if configured
+        # Initialize state collector if configured
         # The verifier runs on the companion device (the phone running the apps).
         # For S25 setups, this is the s25_device_id. For Jinju, it's the companion (s25_device_id).
         xrclaw_config = self.config.get("xrclaw", {})
@@ -110,7 +110,7 @@ class AgentTester:
                 )
 
             else:
-                print("Warning: XRClaw enabled but no s25_device_id found in config for XRClaw target device")
+                print("Warning: State collector enabled but no s25_device_id found in config for state collector target device")
 
         # Initialize precondition manager for app evaluations
         self.precondition_manager = PreconditionManager(

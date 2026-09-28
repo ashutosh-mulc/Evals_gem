@@ -19,7 +19,7 @@ Process Architecture:
        └── judge_worker.judge_worker (CLIENT in screen session)
 """
 
-import os, subprocess, shutil, json, time, sys, glob
+import os, subprocess, shutil, time, sys, glob
 from collections import defaultdict
 from copy import deepcopy
 import numpy as np
@@ -27,7 +27,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from utils.file_utils import *
+from utils.file_utils import JSONFileManager, JSONLFileManager
 from common.test_groups import resolve_config_groups, filter_dataset_by_group, list_groups, TEST_GROUPS
 import automator
 

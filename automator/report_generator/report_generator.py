@@ -5,7 +5,7 @@ from fireredvad import FireRedVad, FireRedVadConfig
 from automator.report_generator.utils.render_summary import SummaryRenderer
 from automator.report_generator.utils.render_report import render_part_html
 from automator.report_generator.report_writer import VQASample, VQADatasetWriter, QueueDBReader, MediaEncoder
-from utils.file_utils import *
+from utils.file_utils import JSONLFileManager
 from apps.judge_helpers import get_flag
 from common.question_type import QuestionType
 
@@ -261,8 +261,3 @@ class ReportGenerator:
         self.render_report_func(out_dir)
         
         
-
-
-if __name__ == "__main__":
-    report_generator = ReportGenerator(input_db)
-    report_generator.generate_summary_func(out_dir)

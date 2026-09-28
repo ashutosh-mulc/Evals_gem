@@ -198,7 +198,7 @@ Look for Gemini/Bard activity keywords to confirm the AI was invoked.
 | Judge prompts | `judge_worker/prompts/` | JSON files per app, loaded by `judge_prompts.py` |
 | Judge scoring | `judge_worker/response_scorer.py` | `run_judge()`, `get_judge_score()` |
 | Deterministic judge | `judge_worker/deterministic_judge.py` | Programmatic verification |
-| Transcription | `services/host/transciption_server.py` | Whisper service |
+| Transcription | `services/host/transcription_server.py` | Whisper service |
 | Automator | `automator/automator.py` | Evaluation orchestration |
 | Coordinator | `metric_coordinator/coordinator.py` | Queue management |
 | Pre-run checks | `scripts/pre_run_checks.py` | Environment validation |

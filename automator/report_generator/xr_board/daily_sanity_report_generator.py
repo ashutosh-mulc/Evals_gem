@@ -6,7 +6,7 @@ import subprocess, os
 from datetime import datetime
 
 from automator.report_generator.utils.log_analyser import LogFile, check_gemini_audio_invoke, check_gemini_video_invoke
-from utils.file_utils import *
+from utils.file_utils import JSONFileManager
 # ------------------------------------------------------
 # JSON CONFIGURATION
 # ------------------------------------------------------

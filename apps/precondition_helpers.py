@@ -229,14 +229,14 @@ def extract_duration_from_question(question: str, action: str) -> Optional[str]:
 
     return None
 
-def clear_clock_state(xrclaw_dm):
+def clear_clock_state(statecollector_dm):
     """Clear all alarms, timers, reset stopwatch, and force-stop Clock app.
 
     Used by clock preconditions for launch actions to ensure a clean state
     before a new evaluation sequence begins.
 
     Args:
-        xrclaw_dm: The XRClaw DeviceManager instance (has .alarms, .timers,
+        statecollector_dm: The XRClaw DeviceManager instance (has .alarms, .timers,
         and .stopwatch).
 
     Returns:
@@ -244,21 +244,21 @@ def clear_clock_state(xrclaw_dm):
     """
     cleared = {"alarms": 0, "timers": 0, "stopwatch_reset": False}
     try:
-        alarms = xrclaw_dm.alarms.find_alarms()
+        alarms = statecollector_dm.alarms.find_alarms()
         for alarm in alarms:
-            xrclaw_dm.alarms.delete_alarm(alarm.id)
+            statecollector_dm.alarms.delete_alarm(alarm.id)
         cleared["alarms"] = len(alarms)
     except Exception:
         pass
     try:
-        timers = xrclaw_dm.timers.find_timers()
+        timers = statecollector_dm.timers.find_timers()
         for timer in timers:
-            xrclaw_dm.timers.delete_timer(timer.id)
+            statecollector_dm.timers.delete_timer(timer.id)
         cleared["timers"] = len(timers)
     except Exception:
         pass
     try:
-        xrclaw_dm.stopwatch.reset_stopwatch()
+        statecollector_dm.stopwatch.reset_stopwatch()
         cleared["stopwatch_reset"] = True
     except Exception:
         pass

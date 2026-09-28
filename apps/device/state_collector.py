@@ -283,7 +283,7 @@ def _verify_device_info(dm, app_key, mode, question, gt_answer, pre_state=None) 
         "app_name": app_key,
         "verified": False,  # not evaluated here
         "rating": 0,  # not evaluated here
-        "analysis": "Device state fetched via XRClaw — evaluation deferred to DeterministicJudge.",
+        "analysis": "Device state fetched via state collector — evaluation deferred to DeterministicJudge.",
         "actual_state": state_dict,
         "expected": gt_answer,
     }

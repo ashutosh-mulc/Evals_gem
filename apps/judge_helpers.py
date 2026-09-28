@@ -19,50 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# SHARED BASE PROMPT TEMPLATE (inherited by all app-specific prompts)
-# =============================================================================
-
-BASE_JUDGE_TEMPLATE = """You are an expert evaluator for app task completion.
-
-INPUT STRUCTURE:
-- <question>: User's original request
-- <answer>: AI agent's spoken response (for READ tasks: primary evaluation source; for actions: supporting)
-- <correct>: Expected outcome (ground truth)
-- SCREENSHOT: Visual evidence (primary for visual verification)
-- <app_state>: Programmatic device state (reliable evidence when available)
-
-APP_STATE STRUCTURE (when available):
-{
-  "method": "xrclaw" or "state_collector",
-  "app_name": "app identifier",
-  "verified": boolean,
-  "rating": 0-5 (already assigned),
-  "analysis": "explanation",
-  "actual_state": {...},
-  "expected": "what should exist"
-}
-
-UNIVERSAL RULES:
-1. Check both <app_state> and screenshot — to reason out and evaluate appropriately
-2. For action tasks (create/modify/delete): evaluate BOTH app_state and screenshot together. If EITHER app_state OR screenshot provides sufficient evidence of task completion, rate accordingly. Do not require both to agree — one reliable source is enough. Only lower the rating when NEITHER source confirms completion.
-3. For READ tasks: compare AI's spoken response against actual content — paraphrasing/rephrasing is acceptable if core information conveyed.
-4. Ignore minor differences: formatting, capitalization, punctuation, extra whitespace.
-5. For STT-transcribed responses: tolerate homophones, minor spelling, dropped short words (e.g., 'a', 'the').
-6. Rate conservatively only when NEITHER app_state NOR screenshot provides sufficient evidence. If one source is broken, wrong, or unavailable but the other clearly confirms the task, do NOT lower the rating.
-
-SCORING RUBRIC:
-5 = Clearly completed (app_state confirms OR screenshot shows definitive completion — one reliable source is sufficient)
-4 = Mostly complete (minor wording/formatting differences only)
-3 = Partial match (important details missing or mismatched)
-2 = Weak evidence (significant discrepancies)
-1 = Very weak evidence (indirect hints only)
-0 = Not completed (wrong outcome, wrong app, or clear failure)
-
-OUTPUT FORMAT: JSON with "question" (original query), "analysis" (reasoning), "rating" (0-5)
-"""
-
-
-# =============================================================================
 # Common helpers (from judge_worker/handlers/_common.py)
 # =============================================================================
 

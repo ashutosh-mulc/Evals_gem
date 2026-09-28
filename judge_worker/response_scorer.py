@@ -1,5 +1,11 @@
 from openai import OpenAI
-from judge_worker.judge_prompts import *
+from judge_worker.judge_prompts import (
+    app_eval_prompt,
+    hallucination_vqa_prompt,
+    qa_prompt,
+    vqa_mistake_prompt,
+    vqa_prompt,
+)
 from judge_worker.judge_response_parser import parse_judge_response
 from judge_worker.device_info_filter import filter_device_info
 from apps.judge_helpers import get_flag
@@ -13,7 +19,7 @@ from collections import Counter
 
 from judge_worker.entropy import HallucinationScorer
 from judge_worker.deterministic_judge import DeterministicJudge, ZERO_ENTROPY
-from utils.file_utils import *
+from utils.file_utils import Base64Converter
 
 
 class ResponseScorer:

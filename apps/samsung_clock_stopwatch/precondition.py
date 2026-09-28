@@ -19,12 +19,12 @@ _NEEDS_RUNNING_STOPWATCH = {"lap", "stop", "reset"}
 
 def setup(dm, sc, qt, question, gt_answer):
     action = qt.action
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
+    statecollector_dm = getattr(sc, "_dm", None) or dm
 
     # ── Launch: clear all clock state for a clean slate ──
     if action == "launch":
         try:
-            cleared = clear_clock_state(xrclaw_dm)
+            cleared = clear_clock_state(statecollector_dm)
             logger.info("Precondition: cleared %d alarm(s), stopwatch_reset=%s",
                          cleared["alarms"], cleared["stopwatch_reset"])
             return report(
@@ -39,9 +39,9 @@ def setup(dm, sc, qt, question, gt_answer):
         return report(skipped=f"No precondition needed for action='{action}'")
 
 
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
+    statecollector_dm = getattr(sc, "_dm", None) or dm
     try:
-        xrclaw_dm.stopwatch.start_stopwatch()
+        statecollector_dm.stopwatch.start_stopwatch()
         logger.info("Precondition: started stopwatch")
         return report(
             set_items=["Started stopwatch"],

@@ -41,7 +41,7 @@ An identical, independently-maintained copy of this whole sequence exists in `sc
 
 ### 1. Signal source: companion phone's `dumpsys media_session`, via the existing `DeviceInfo` class
 
-`agent_testers/device_managers/device_config.py::DeviceInfo.get_media()` (lines 387-446) already does exactly the needed parsing — no new adb/dumpsys code needed:
+`agent_testers/device_managers/adb_device_info.py::DeviceInfo.get_media()` (renamed from `device_config.py`; the class itself is unchanged) already does exactly the needed parsing — no new adb/dumpsys code needed:
 ```python
 {"active": bool, "playing": bool, "package": str|None, "state": str|None,
  "state_code": int|None, ..., "error": str|None}
@@ -86,7 +86,7 @@ is_consent = bool(get_consent_rules(qt.feature, qt.action))
 
 ### 6. Graceful degradation when there's no companion device at all
 
-Not every `DeviceManager` subclass implements `_get_companion_device()` — `DeviceManagerTemplate` (`agent_testers/device_managers/device_manager.py:127-131`) raises `NotImplementedError` by default for managers that don't mix in `AppTasksMixin` (dummy, meta_live, s25_claude_live, s25_gpt_live, s25_gemini_upload). Catch this (and any other resolution failure) and fall back to the old fixed sleep unconditionally — this scopes the feature to configs that actually have a real companion media session without crashing on the others.
+Not every `DeviceManager` subclass implements `_get_companion_device()` — `AppTasksMixin` (`agent_testers/device_managers/mixins/app_tasks.py`, not `DeviceManagerTemplate`) raises `NotImplementedError` by default for managers that don't mix it in. As of 2026-09-28 that's only `dummy-device-manager` (`s25_claude_live`, `s25_gpt_live`, `s25_gemini_upload`, and `meta_live` were removed as unused device_manager_types). Catch this (and any other resolution failure) and fall back to the old fixed sleep unconditionally — this scopes the feature to configs that actually have a real companion media session without crashing on the dummy one.
 
 ---
 
@@ -131,11 +131,11 @@ Everything else in this design (Phase 1 never-started fallback, ceiling safety n
 |---|---|
 | `agent_testers/response_wait.py` | **New.** `wait_for_response_end()` — two-phase polling/debounce logic described above. |
 | `agent_testers/response_recorder.py` | **New.** `record_agent_response()` — shared start/consent-branch/wait/stop sequence used by both call sites. |
-| `agent_testers/device_managers/device_config.py` | Add optional `prefer_packages` param to `get_media()` / `_select_active_session()` (lines 387-519), default `None`, backward-compatible. |
+| `agent_testers/device_managers/adb_device_info.py` (renamed from `device_config.py`) | Add optional `prefer_packages` param to `get_media()` / `_select_active_session()`, default `None`, backward-compatible. |
 | `agent_testers/agent_tester.py` | Lines 427-451: replace inline sequence with a call to `record_agent_response(...)`. |
 | `scripts/run_test_case.py` | `_record_response` (lines ~442-480): replace inline sequence with the same shared call. |
 | `apps/registry.py`, `agent_testers/consent_player.py` | Reference only — `get_consent_rules` / `play_consent` already provide everything needed for the consent branch; no changes. |
-| `agent_testers/device_managers/device_manager.py` | Reference only — confirms `_get_companion_device()`'s `NotImplementedError` stub pattern to catch for graceful degradation. |
+| `agent_testers/device_managers/mixins/app_tasks.py` | Reference only — confirms `_get_companion_device()`'s `NotImplementedError` stub pattern to catch for graceful degradation. |
 
 ## Constants (documented, not configurable — same tier as existing `max_retries=3` in `app_tasks.py`)
 

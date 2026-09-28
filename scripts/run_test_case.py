@@ -387,11 +387,11 @@ def _capture_pre_state(
     # XRClaw pre-state
     try:
         resources.dm.capture_pre_state(q_info)
-        tracer.step("capture_xrclaw_pre_state", outputs={"status": "captured"})
+        tracer.step("capture_pre_state", outputs={"status": "captured"})
     except Exception as e:
-        print(f"  [ERROR] capture_xrclaw_pre_state failed: {e}", flush=True)
+        print(f"  [ERROR] capture_pre_state failed: {e}", flush=True)
         traceback.print_exc()
-        tracer.step("capture_xrclaw_pre_state", status="failure", error=str(e))
+        tracer.step("capture_pre_state", status="failure", error=str(e))
 
     # Pre-test volume reset for volume-up queries
     try:

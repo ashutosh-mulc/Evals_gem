@@ -460,29 +460,56 @@ Google Keep was the next Google integration to add after Gmail, Calendar, and Ta
 - [ ] For apps without XRClaw support, improve VLM judge prompts
 - [ ] Consider UI-automation-based collector as alternative plugin
 
-### 3. Device Manager Unification
-**Current:** Multiple device managers with overlapping logic:
+### 3. Device Manager Unification (PARTIALLY DONE — 2026-09-28)
+**Current:** Two real device managers plus the no-op stub:
 - `jinju_gemini_manager.py`
 - `s25_gemini_live_manager.py`
-- `s25_gpt_live_manager.py`
-- `s25_claude_live_manager.py`
-- `meta_live_manager.py`
 - `dummy_device_manager.py`
 
+`s25_gpt_live_manager.py`, `s25_claude_live_manager.py`, and `meta_live_manager.py`
+(the last never even parsed) were deleted — those device_manager_types were no
+longer in use. `agent_testers.device_managers.DEVICE_MANAGERS` is now the single
+map of device_manager_type -> module, replacing three copies that had drifted
+out of sync (agent_tester.py, trace_injection.py, pre_run_checks.py).
+
 **Refactoring Plan:**
-- [ ] Extract common logic into base class
-- [ ] Use mixins for device-specific behavior
-- [ ] Reduce code duplication across managers
+- [x] Extract common logic into base class — `DeviceManagerTemplate` gained
+      `_start_logcat()`/`_stop_logcat()` (shared by Jinju's LogcatMixin and S25),
+      and a shared `_run_app_tasks()` on `AppTasksMixin` for the
+      APP_CONFIGS -> app_config -> `_execute_app_tasks()` lookup every manager
+      was rebuilding by hand.
+- [x] Use mixins for device-specific behavior — already the pattern; extended it
+      rather than replacing it.
+- [x] Reduce code duplication across managers — logcat start/stop, screenshot
+      pull/clear (now via `AdbClient`), and device-info capture
+      (`_capture_device_info_xrclaw` vs `_legacy` merged into one method) no
+      longer duplicated between Jinju and S25.
 
 ---
 
 ---
 
-## Rename "xrclaw" → "state_collector" in State Collector Code (PLANNED)
+## Rename "xrclaw" → "state_collector" in State Collector Code (PART 3 DONE)
 
-**Status:** `PLANNED`
+**Status:** `PART 3 DONE, PARTS 1-2 STILL PLANNED`
 **Priority:** Medium
 **Last analyzed:** 2026-09-18
+**Updated:** 2026-09-28 — Part 3 (aliases/names) done as part of a broader
+readability refactor. Parts 1-2 (user-visible labels, `method` field string
+values) are untouched — genuinely separate work, not attempted here.
+
+**Scope note:** this refactor went one step further than Part 3 planned for
+the metadata-key aliases specifically. The scope boundary below says to keep
+`"xrclaw_state"`/`"xrclaw_state_pre"` as a backward-compat key for old JSONL
+data — but the user explicitly asked for no backward-compat fallbacks
+anywhere in this pass ("no need to maintain fallback, it'll bloat the code"),
+so those two metadata keys were also removed (renamed to `"app_state"`/
+`"app_state_pre"`, no fallback read), along with `extra_logs` (folded into
+`app_state.log_analysis`), `device_info` (use `device_info_post`), and the
+screenshot fields (`app_screenshot_path`/`encoded_app_screenshot` -> the
+`post_state_screenshots` list). Old JSONL/queue.db data with these keys will
+not render in the current dashboard/report generator — there was no
+migration script, per the same instruction.
 
 ### Problem
 
@@ -495,13 +522,13 @@ The following refer to the **actual XRClaw product/framework** and must stay as-
 | Item | Location | Reason |
 |------|----------|--------|
 | Config key `"xrclaw"` | All JSON configs, `common/schema.py:XRClawConfig` | Configures the real XRClaw framework (`claw_package`, `python_automation_path`) |
-| Metadata key `"xrclaw_state"` / `"xrclaw_state_pre"` | `common/evaluation_metadata.py`, `state_collect.py:151`, `judge_helpers.py:163`, `response_scorer.py:264`, `report_generator.py:191` | Backward-compat key for old JSONL data |
+| ~~Metadata key `"xrclaw_state"` / `"xrclaw_state_pre"`~~ | — | **Removed 2026-09-28, no fallback** — see scope note above. `common/evaluation_metadata.py` (unused, also since deleted) previously carried this. |
 | `start_xrclaw()` | `automator/automator.py:96` | Launches actual XRClaw companion app (`com.samsung.xr.claw.client`) |
 | `XRClawStateCollector` class + `xrclaw_state_collector.py` file | `agent_testers/device_managers/` | Wraps the actual XRClaw Python Automation framework's DeviceManager |
 | `MockXRClawDeviceManager` class + `mock_xrclaw.py` file | `test/mocks/` | Mocks the actual XRClaw DeviceManager |
 | `check_xrclaw_app_running()` / `--skip-xrclaw` | `scripts/pre_run_checks.py` | Checks the actual XRClaw app |
 | `xrclaw_config` variables | `automator.py`, `agent_tester.py`, `run_test_case.py` | Read from `config.get("xrclaw", {})` — match config key |
-| `_capture_device_info_xrclaw()` | `device_info.py:75` | Uses actual XRClaw DeviceInfoApp |
+| ~~`_capture_device_info_xrclaw()`~~ | `device_info.py` | **Merged into `_capture_device_info()` 2026-09-28** — it and `_capture_device_info_legacy()` were ~90% identical; the merged method still uses the actual XRClaw DeviceInfoApp for companion DND/media when `self.state_collector` is set. |
 | Docstrings mentioning `XRClawStateCollector._collect_*_state()` | 7 `state_collector.py` files, `helpers.py:4` | Refer to actual class extraction history |
 
 ### Approach: Hard restructuring (no backward compat)
@@ -589,7 +616,7 @@ No soft backward-compat fallbacks. When we rename a producer value, we update al
 
 ---
 
-### Part 3 — Function / Variable / Alias Names
+### Part 3 — Function / Variable / Alias Names (DONE 2026-09-28)
 
 **Files:** ~15
 
@@ -604,7 +631,7 @@ No soft backward-compat fallbacks. When we rename a producer value, we update al
 | `agent_testers/.../state_collect.py` | 95 | Remove `capture_xrclaw_pre_state = capture_pre_state` |
 | `agent_testers/.../state_collect.py` | 159 | Remove `_xrclaw_collect_state = _collect_state` |
 
-#### Remove `XRCLAW_APP_KEY_MAP` / `get_xrclaw_app_key` aliases
+#### Remove `XRCLAW_APP_KEY_MAP` / `get_xrclaw_app_key` aliases — done
 
 | File | Line | Change |
 |------|------|--------|
@@ -614,7 +641,7 @@ No soft backward-compat fallbacks. When we rename a producer value, we update al
 | `apps/__init__.py` | 47 | Remove `"XRCLAW_APP_KEY_MAP",` from `__all__` |
 | `apps/__init__.py` | 48 | Remove `"get_xrclaw_app_key",` from `__all__` |
 
-#### Remove `xrclaw_collector` attribute alias
+#### Remove `xrclaw_collector` attribute alias — done
 
 | File | Line | Change |
 |------|------|--------|
@@ -622,7 +649,7 @@ No soft backward-compat fallbacks. When we rename a producer value, we update al
 | `agent_testers/.../s25_gemini_live_manager.py` | 16 | Remove `self.xrclaw_collector = None  # backward-compat alias` |
 | `agent_testers/.../jinju_gemini_manager.py` | 32 | Remove `self.xrclaw_collector = None  # backward-compat alias` |
 
-#### Update `getattr` fallbacks (remove `xrclaw_collector` lookups)
+#### Update `getattr` fallbacks (remove `xrclaw_collector` lookups) — done
 
 | File | Line | Current | New |
 |------|------|---------|-----|
@@ -633,7 +660,7 @@ No soft backward-compat fallbacks. When we rename a producer value, we update al
 | `agent_testers/.../s25_gemini_live_manager.py` | 65 | `getattr(self, "_collect_state", None) or getattr(self, "_xrclaw_collect_state", None)` | `getattr(self, "_collect_state", None)` |
 | `agent_testers/.../s25_gemini_live_manager.py` | 66 | `getattr(self, "xrclaw_collector", None) or getattr(self, "state_collector", None)` | `getattr(self, "state_collector", None)` |
 
-#### Update docstrings referencing `xrclaw_collector`
+#### Update docstrings referencing `xrclaw_collector` — done
 
 | File | Line | Current | New |
 |------|------|---------|-----|
@@ -646,19 +673,16 @@ No soft backward-compat fallbacks. When we rename a producer value, we update al
 | `agent_testers/.../state_collect.py` | 7 | `state_collector (or xrclaw_collector)` | `state_collector` |
 | `agent_testers/.../state_collect.py` | 23 | `self.xrclaw_collector: backward-compat alias (optional)` | Remove line |
 
-#### Rename `xrclaw_dm` → `statecollector_dm` in precondition files
+#### Rename `xrclaw_dm` → `statecollector_dm` in precondition files — done
 
-Pattern: `xrclaw_dm = getattr(sc, "_dm", None) or dm` (or `getattr(dm, "_dm", None) or dm`)
+Done for all 8 files that actually had it (this list was missing
+`samsung_clock_timer`, `samsung_notes`, `samsung_reminders`):
+`apps/device/precondition.py`, `apps/precondition_helpers.py`,
+`apps/samsung_calendar/precondition.py`, `apps/samsung_clock_alarm/precondition.py`,
+`apps/samsung_clock_stopwatch/precondition.py`, `apps/samsung_clock_timer/precondition.py`,
+`apps/samsung_notes/precondition.py`, `apps/samsung_reminders/precondition.py`.
 
-| File | Approx occurrences |
-|------|-------------------|
-| `apps/device/precondition.py` | ~15 |
-| `apps/samsung_clock_stopwatch/precondition.py` | ~5 |
-| `apps/samsung_calendar/precondition.py` | ~5 |
-| `apps/samsung_clock_alarm/precondition.py` | ~3 |
-| `apps/precondition_helpers.py` | `clear_clock_state(xrclaw_dm)` parameter + body |
-
-#### Update `agent_tester.py` call sites
+#### Update `agent_tester.py` call sites — done
 
 | File | Line | Current | New |
 |------|------|---------|-----|
@@ -667,7 +691,7 @@ Pattern: `xrclaw_dm = getattr(sc, "_dm", None) or dm` (or `getattr(dm, "_dm", No
 | `agent_testers/agent_tester.py` | 423 | `See DeviceManagerTemplate.capture_xrclaw_pre_state.` | `See DeviceManagerTemplate.capture_pre_state.` |
 | `agent_testers/agent_tester.py` | 425 | `self.device_manager.capture_xrclaw_pre_state(question_info)` | `self.device_manager.capture_pre_state(question_info)` |
 
-#### Update `scripts/run_test_case.py` call sites
+#### Update `scripts/run_test_case.py` call sites — done
 
 | File | Line | Current | New |
 |------|------|---------|-----|
@@ -676,7 +700,7 @@ Pattern: `xrclaw_dm = getattr(sc, "_dm", None) or dm` (or `getattr(dm, "_dm", No
 | `scripts/run_test_case.py` | 390 | `capture_xrclaw_pre_state failed` | `capture_pre_state failed` |
 | `scripts/run_test_case.py` | 392 | `tracer.step("capture_xrclaw_pre_state", ...)` | `tracer.step("capture_pre_state", ...)` |
 
-#### Update remaining comments
+#### Update remaining comments — done (2 of 3; `xrclaw_unavailable` method value in google_maps left as-is, that's Part 2)
 
 | File | Line | Current | New |
 |------|------|---------|-----|
@@ -688,18 +712,20 @@ Pattern: `xrclaw_dm = getattr(sc, "_dm", None) or dm` (or `getattr(dm, "_dm", No
 
 ### Implementation Order
 
-1. **Part 1** — Labels & comments (3 files, zero risk)
-2. **Part 2** — `method` field values (producers → consumers → tests, run tests after)
-3. **Part 3** — Function/variable/alias names (remove aliases last, after all call sites updated)
+1. **Part 1** — Labels & comments (3 files, zero risk) — **still open**, `automator/templates/response_visualizer.html` isn't in this working copy of the repo
+2. **Part 2** — `method` field values (producers → consumers → tests, run tests after) — **still open**
+3. **Part 3** — Function/variable/alias names (remove aliases last, after all call sites updated) — **done**
 
 ### Validation
 
-- Run `pytest test/unit/test_helpers.py test/unit/test_deterministic_judge.py -v` after Part 2
-- Run `pytest test/integration/test_state_collectors.py -v` after Part 2
-- Grep for remaining `xrclaw` references (excluding config keys, metadata keys, XRClaw product references, and test mock files) after Part 3
-- Full test suite run after all parts
+- ✅ `pytest test/unit test/integration -v` passes (Part 3's changes)
+- Parts 1-2 remaining validation (still applies once picked up):
+  - Run `pytest test/unit/test_helpers.py test/unit/test_deterministic_judge.py -v` after Part 2
+  - Run `pytest test/integration/test_state_collectors.py -v` after Part 2
+  - Grep for remaining `xrclaw` references (excluding config keys, metadata keys, XRClaw product references, and test mock files) after Part 2
+  - Full test suite run after Parts 1-2
 
-### Estimated total: ~30 files
+### Estimated total: ~30 files (Part 3's ~15 done; Parts 1-2's ~15 remain)
 
 ---
 

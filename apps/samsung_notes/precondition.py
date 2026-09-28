@@ -34,9 +34,9 @@ def setup(dm, sc, qt, question, gt_answer):
 
     # ── Launch: clear all notes to ensure a clean state ──
     if action == "launch":
-        xrclaw_dm = getattr(sc, "_dm", None) or dm
+        statecollector_dm = getattr(sc, "_dm", None) or dm
         try:
-            cleared = xrclaw_dm.notes.clear_all_notes()
+            cleared = statecollector_dm.notes.clear_all_notes()
             logger.info("Precondition: cleared %d existing note(s) before launch", cleared)
             return report(
                 set_items=[f"Cleared {cleared} existing note(s) before launch"],
@@ -60,9 +60,9 @@ def setup(dm, sc, qt, question, gt_answer):
     content = extract_description_from_gt(gt_answer)
 
     # Create the note via XRClaw (use dm directly or via state collector)
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
+    statecollector_dm = getattr(sc, "_dm", None) or dm
     try:
-        xrclaw_dm.notes.create_note(title, content)
+        statecollector_dm.notes.create_note(title, content)
         logger.info("Precondition: created note '%s' with content '%s'", title, content)
         return report(
             set_items=[f"Created note '{title}' with content '{content}'"],

@@ -24,9 +24,9 @@ def setup(dm, sc, qt, question, gt_answer):
 
     # ── Launch: clear all events to ensure a clean state ──
     if action == "launch":
-        xrclaw_dm = getattr(sc, "_dm", None) or dm
+        statecollector_dm = getattr(sc, "_dm", None) or dm
         try:
-            cleared = xrclaw_dm.calendar.clear_all_events()
+            cleared = statecollector_dm.calendar.clear_all_events()
             logger.info("Precondition: cleared %d existing event(s) before launch", cleared)
             return report(
                 set_items=[f"Cleared {cleared} existing event(s) before launch"],
@@ -49,9 +49,9 @@ def setup(dm, sc, qt, question, gt_answer):
 
     description = extract_description_from_gt(gt_answer)
 
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
+    statecollector_dm = getattr(sc, "_dm", None) or dm
     try:
-        xrclaw_dm.calendar.create_event(title, description)
+        statecollector_dm.calendar.create_event(title, description)
         logger.info("Precondition: created calendar event '%s'", title)
         return report(
             set_items=[f"Created event '{title}'"],

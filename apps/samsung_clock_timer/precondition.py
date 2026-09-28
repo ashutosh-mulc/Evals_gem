@@ -25,12 +25,12 @@ _DEFAULT_TIMER_DURATION = "5 minutes"
 
 def setup(dm, sc, qt, question, gt_answer):
     action = qt.action
-    xrclaw_dm = getattr(sc, "_dm", None) or dm
+    statecollector_dm = getattr(sc, "_dm", None) or dm
 
     # ── Launch: clear all clock state for a clean slate ──
     if action == "launch":
         try:
-            cleared = clear_clock_state(xrclaw_dm)
+            cleared = clear_clock_state(statecollector_dm)
             logger.info(
                 "Precondition: cleared %d alarm(s), %d timer(s), stopwatch_reset=%s",
                 cleared["alarms"], cleared["timers"], cleared["stopwatch_reset"],
@@ -57,8 +57,8 @@ def setup(dm, sc, qt, question, gt_answer):
 
     try:
         # Clear any stale timers from previous queries.
-        cleared = clear_clock_state(xrclaw_dm)
-        xrclaw_dm.timers.create_timer(duration_seconds, label="Timer")
+        cleared = clear_clock_state(statecollector_dm)
+        statecollector_dm.timers.create_timer(duration_seconds, label="Timer")
         logger.info("Precondition: cleared %d timer(s), created timer (%s = %ds)",
                      cleared["timers"], duration_str, duration_seconds)
         return report(

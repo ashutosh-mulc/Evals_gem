@@ -3,7 +3,7 @@ State collector for Google Maps.
 
 Accessor: maps
 
-Migrated from xrclaw_state_collector.py _collect_maps_state.
+Migrated from XRClawStateCollector._collect_maps_state.
 Routes on app_mode (the action from question_type) rather than keyword-matching
 gt_answer. Handles all Maps sub-features:
   - launch:         verify Maps is in foreground
