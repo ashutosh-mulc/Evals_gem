@@ -498,6 +498,6 @@ if __name__ == "__main__":
        config_path = sys.argv[1]
     if os.environ.get("PIPELINE_TRACE"):
         from utils.trace_injection import install_tracing
-        install_tracing(config_path)
+        install_tracing(config_path, AgentTester)
     agent_tester = AgentTester(config_path)
     agent_tester.client_server()
