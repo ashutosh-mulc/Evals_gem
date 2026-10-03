@@ -4,6 +4,14 @@ Automated evaluation framework for testing multimodal AI agents on devices with 
 
 ---
 
+## Overview
+
+![Maire + XRClaw overview: dataset and config feed the automator, which starts the coordinator, agent_tester and judge_worker; agent_tester drives the test rig and XRClaw, judge_worker scores with AI services, reports come out at the end](./docs/diagrams/overview.png)
+
+<sub>Editable source: [overview.excalidraw](./docs/diagrams/overview.excalidraw)</sub>
+
+---
+
 ## Quick Start
 
 ```bash
@@ -403,9 +411,13 @@ python -m pytest test/test_config_schema.py -v
 
 For a detailed system design document, see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
-![Evaluation Framework Architecture](./evaluation_framework_architecture.png)
+The [overview](#overview) above is the short version. The full system diagram below shows every component and where each numbered step of a question's journey runs (click for full size):
 
-> **Note:** The PNG above shows the legacy inline XRClaw flow. The current implementation uses a **registry-based plugin system** where each app has its own state collector, judge, and prompt modules in top-level `apps/{app_name}/` (not `agent_testers/apps/`). The `XRClawStateCollector` is now a thin wrapper that delegates to these per-app modules via the `STATE_COLLECTORS` registry. The four diagrams below reflect the current design.
+[![Detailed system diagram: Maire processes, app registry, ADB boundary, S25 / Jinju rig and the XRClaw repo](./docs/diagrams/system-detailed.png)](./docs/diagrams/system-detailed.png)
+
+<sub>Editable source: [system-detailed.excalidraw](./docs/diagrams/system-detailed.excalidraw)</sub>
+
+> **Note:** The current implementation uses a **registry-based plugin system** where each app has its own state collector, judge, and prompt modules in top-level `apps/{app_name}/` (not `agent_testers/apps/`). The `XRClawStateCollector` is now a thin wrapper that delegates to these per-app modules via the `STATE_COLLECTORS` registry. The four diagrams below reflect the current design.
 
 ### 1. Process Topology
 
@@ -413,119 +425,20 @@ Four OS processes, wired by named pipes (FIFOs) in `/tmp`, each frame a 4-byte l
 header + JSON payload (`utils/message_transport.py::MessagePipes`). `automator.py` starts
 XRClaw instrumentation on the companion device, then spawns the other three:
 
-```
-automator/automator.py   (one-shot orchestrator)
-  │
-  ├─ 1. start_xrclaw()        adb shell am instrument   (companion device)
-  ├─ 2. spawn coordinator      subprocess.Popen
-  ├─ 3. spawn agent_tester     screen -dmS agent_tester
-  └─ 4. spawn judge_worker     screen -dmS judge_worker
+![Process topology: automator spawns coordinator, agent_tester and judge_worker, wired by FIFO pipes](./docs/diagrams/process-topology.png)
 
-                  ┌────────────────────────────────────────┐
-                  │   metric_coordinator/coordinator.py     │
-                  │   (HOST — reads dataset.jsonl,          │
-                  │    dispatches work, tracks status)      │
-                  │                                          │
-                  │   persists to: metric_coordinator/       │
-                  │     queue.db  ::  table metric_queue     │
-                  │     (id, question, eval_json, status,    │
-                  │      result_json, created_at)            │
-                  └───────────────────┬──────────────────────┘
-                                      │
-                    named FIFOs, /tmp/*_to_*, JSON payloads
-                                      │
-                    ┌─────────────────┴─────────────────┐
-                    │                                   │
-                    ▼                                   ▼
-  /tmp/coordinator_to_agent_tester    /tmp/coordinator_to_judge_worker
-  /tmp/agent_tester_to_coordinator    /tmp/judge_worker_to_coordinator
-                    │                                   │
-                    ▼                                   ▼
-  ┌─────────────────────────┐        ┌─────────────────────────┐
-  │ agent_testers/          │        │ judge_worker/           │
-  │   agent_tester.py       │        │   judge_worker.py       │
-  │ (CLIENT — screen)       │        │ (CLIENT — screen)       │
-  │                         │        │                         │
-  │ device_manager.invoke() │──────▶│ DeterministicJudge.     │
-  │ XRClawStateCollector    │  q_info│   evaluate()            │
-  │ writes metadata[]       │ via    │ → HANDLER_REGISTRY      │
-  │ app_state               │ coord. │ falls back to VLM       │
-  └──────────┬──────────────┘        └─────────────────────────┘
-             │ ADB (broadcast + logcat)
-             ▼
-  ┌─────────────────────────────────────────────────────────────┐
-  │          Physical / emulated Android device(s)              │
-  │  Jinju glasses  +  companion (S25) running XRClaw client    │
-  └─────────────────────────────────────────────────────────────┘
-```
+<sub>Editable source: [process-topology.excalidraw](./docs/diagrams/process-topology.excalidraw)</sub>
 
-Note: `agent_tester` and `judge_worker` never talk to each other directly — the arrow
-above is shorthand for "app_state rides inside `metadata`, which the coordinator
-forwards from one FIFO pair to the other."
+Note: `agent_tester` and `judge_worker` never talk to each other directly. `app_state`
+rides inside `metadata`, which the coordinator forwards from one FIFO pair to the other.
 
 ### 2. One Question's Journey
 
 What happens between reading one line of the dataset and writing one graded result:
 
-```
-1. metric_coordinator/coordinator.py
-     loads dataset.jsonl via JSONLFileManager, sends one row (with
-     "question_type", e.g. "online_samsung_notes_create") to agent_tester
-     over the FIFO; agent_tester.AgentTester._decode_inputs() base64-decodes
-     the row's image/audio fields
-        │
-        ▼
-2. QuestionType.parse(question_type)            [common/question_type.py]
-     → (connectivity, group, feature, action, app_key)
-     app_key resolved via apps.APP_KEY_MAP  (e.g. "samsungnote")
-        │
-        ▼
-3. device_manager.set_connectivity()
-     online / offline / airplane — per question
-        │
-        ▼
-4. consent_player.play_consent(dm, qt)
-     looks up CONSENT_RULES[(feature, action)] → plays .wav consent audio
-        │
-        ▼
-5. precondition_manager.setup(q_info)           [apps/<app>/precondition.py]
-     puts the device into the state the ground truth assumes
-     (e.g. clear existing notes, start a stopwatch)
-        │
-        ▼
-6. capture_pre_state(app_key)                   [XRClawStateCollector]
-     dispatch → STATE_COLLECTORS[app_key].capture_pre(dm)
-     snapshot BEFORE the agent acts, for before/after diffing
-        │
-        ▼
-7. device_manager.invoke(question_info)
-     agent hears the question → acts on-device → TTS response captured;
-     screenshots + device_info_pre/post recorded
-        │
-        ▼
-8. collect_app_state()                          [XRClawStateCollector]
-     dispatch → STATE_COLLECTORS[app_key].verify(dm, app_key, mode,
-                                                   question, gt_answer, pre_state)
-     → metadata["app_state"] = {method, verified, rating, analysis,
-                                  actual_state, expected}
-        │
-        ▼   metadata travels: agent_tester → coordinator → judge_worker
-        │
-9. DeterministicJudge.evaluate(question_type, question, ai_response, metadata)
-     dispatch → HANDLER_REGISTRY[(app_key, action)](question, ai_response, metadata)
-        │
-        ├─ handled, rating above threshold ─────────▶  DONE — deterministic result
-        │
-        └─ unhandled, OR rating ≤ BAD_RATING_THRESHOLD
-                   │
-                   ▼
-10. VLM judge fallback                          [judge_worker/response_scorer.py]
-     prompt = JUDGE_PROMPTS[app_key], with <<app_state>> substituted in
-     LLM produces the final (rating, analysis)
-        │
-        ▼
-11. result written back to coordinator → queue.db → report generator
-```
+![One question's journey: 11 steps from dataset row to graded result](./docs/diagrams/question-journey.png)
+
+<sub>Editable source: [question-journey.excalidraw](./docs/diagrams/question-journey.excalidraw)</sub>
 
 ### 3. App Plugin Registry
 
@@ -533,44 +446,9 @@ What happens between reading one line of the dataset and writing one graded resu
 the 21 sibling directories under `apps/` and, for each, imports up to 6 optional
 submodules — no central file lists the apps; adding one means creating a new directory:
 
-```
-apps/registry.py :: _discover_apps()
-  for app_dir in apps/*/  (e.g. apps/samsung_notes/):
+![App plugin registry: per-app files feed the registry dicts at import time](./docs/diagrams/app-registry.png)
 
-  ┌───────────────────────┐        ┌────────────────────────────────────────┐
-  │ config.py  (required)  │──────▶│ APP_CONFIGS[group][feature] = {...}     │
-  │  APP_KEY, GROUP,        │       │ APP_KEY_MAP[(group,feature)] = app_key  │
-  │  FEATURE(S), PACKAGE_    │       └────────────────────────────────────────┘
-  │  NAME, ACTIONS            │
-  └───────────────────────┘
-
-  ┌───────────────────────┐        ┌────────────────────────────────────────┐
-  │ state_collector.py       │──────▶│ STATE_COLLECTORS[app_key] = <module>    │
-  │  (optional)                │       │  dispatched by hasattr(mod, "verify")  │
-  │  APP_KEYS, ACCESSOR,       │       └────────────────────────────────────────┘
-  │  capture_pre(), verify()   │
-  └───────────────────────┘
-
-  ┌───────────────────────┐        ┌────────────────────────────────────────┐
-  │ judge.py  (optional)     │──────▶│ JUDGE_HANDLERS[(app_key,action)] = fn   │
-  │  HANDLERS = {              │       │  folded into DeterministicJudge         │
-  │   (app_key,action): fn }   │       │  .HANDLER_REGISTRY at import time       │
-  └───────────────────────┘        └────────────────────────────────────────┘
-
-  ┌───────────────────────┐        ┌────────────────────────────────────────┐
-  │ prompt.json  (optional)  │──────▶│ JUDGE_PROMPTS[app_key] = {...}          │
-  └───────────────────────┘        └────────────────────────────────────────┘
-
-  ┌───────────────────────┐        ┌────────────────────────────────────────┐
-  │ consent.py  (optional)   │──────▶│ CONSENT_RULES[(feature,action)] = [...]│
-  └───────────────────────┘        └────────────────────────────────────────┘
-
-  ┌───────────────────────┐        ┌────────────────────────────────────────┐
-  │ precondition.py           │──────▶│ PRECONDITIONS[app_key] = <module>       │
-  │  (optional)                 │       │  dispatched by hasattr(mod, "setup")   │
-  │  setup(), verify()           │       └────────────────────────────────────────┘
-  └───────────────────────┘
-```
+<sub>Editable source: [app-registry.excalidraw](./docs/diagrams/app-registry.excalidraw)</sub>
 
 ### 4. XRClaw Integration Boundary
 
@@ -578,35 +456,9 @@ XRClaw's `python_automation` is imported in-process (via `sys.path` injection, n
 pip dependency) — it is not a subprocess of maire. XRClaw itself talks to the device
 purely through ADB broadcasts out and logcat text in; there is no JSON on that leg:
 
-```
-maire (same OS process as agent_tester)              XRClaw (separate git repo)
-──────────────────────────────              ─────────────────────────────────
-apps/<app>/state_collector.py                 claw-client/  (Android app, Kotlin)
-  verify(dm, app_key, mode, ...)                 AppFunctionTestReceiver.kt
-        │                                              ▲
-        │ dm.notes.find_notes()                         │ am broadcast
-        ▼                                              │ -a TEST_APP_FUNCTION
-python_automation.DeviceManager                        │ --es domain NOTES
-  dm.notes / dm.calendar / dm.maps / ... ── adb ───────┘ --es action createNote
-        │
-        │ AdbHelper._run_adb([...])                     ▼
-        ▼                                   Samsung/Google app on-device DB
-   adb logcat -c ; wait for "DONE"          (Notes, Reminders, Calendar, ...)
-        │                                              │
-        ▼                                              │
-   parse  key="value"  lines  ◀──── logcat line ───────┘
-   (regex + unescape_logcat_value)
-        │
-        ▼
-   NoteItem / EventItem / ... .to_dict()
-        │
-        ▼
-   apps/helpers.py :: result(app_name, verified, rating,
-                              analysis, actual_state, expected)
-        │
-        ▼
-   metadata["app_state"]   (JSON — crosses the FIFO to judge_worker)
-```
+![XRClaw integration boundary: state collector to python_automation to ADB to claw-client and back](./docs/diagrams/xrclaw-boundary.png)
+
+<sub>Editable source: [xrclaw-boundary.excalidraw](./docs/diagrams/xrclaw-boundary.excalidraw)</sub>
 
 ---
 
