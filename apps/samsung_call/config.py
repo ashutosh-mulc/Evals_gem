@@ -7,24 +7,36 @@ FEATURE = "call"
 PACKAGE_NAME = "com.samsung.android.dialer"
 ACTIVITY_NAME = "com.samsung.android.dialer/.DialtactsActivity"
 
+# The Phone app reopens on whichever tab was used last (Keypad, Recents or Contacts), so the
+# actions that open it tap the Recents tab explicitly. The bottom tabs have exact content-descs.
+RECENTS_TAB_DESC = "Recents"
+
 ACTIONS = {
     "launch": [
-        ['screenshot']
+        # The agent already left the app open; just capture whatever is on screen.
+        ['screenshot'],
     ],
     "send": [
-        ['open_activity', ACTIVITY_NAME], ['screenshot']
+        ['open_activity', ACTIVITY_NAME],          # open Phone (it may open on any tab)
+        ['tap_content_desc', RECENTS_TAB_DESC],    # switch to the Recents tab (call log)
+        ['screenshot'],                            # capture the call log with the latest call
     ],
     "visualsend": [
-        ['screenshot']
+        # Screenshot only: captures whatever the agent left on screen.
+        ['screenshot'],
     ],
     "videostart": [
-        ['open_activity', ACTIVITY_NAME], ['screenshot']
+        ['open_activity', ACTIVITY_NAME],          # open Phone (it may open on any tab)
+        ['tap_content_desc', RECENTS_TAB_DESC],    # switch to the Recents tab (call log)
+        ['screenshot'],                            # capture the call log with the latest call
     ],
     "disambiguation": [
-        ['screenshot']
+        # Screenshot only: captures whatever the agent left on screen.
+        ['screenshot'],
     ],
     "notsend": [
-        ['screenshot']
+        # Screenshot only: captures whatever the agent left on screen.
+        ['screenshot'],
     ],
 }
 
