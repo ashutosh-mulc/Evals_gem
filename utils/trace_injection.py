@@ -5,13 +5,13 @@ When PIPELINE_TRACE env var is set, each process (agent_tester, judge_worker,
 coordinator) calls install_tracing() at startup.  This replaces key methods
 on DeviceManager, ARAPManager, PreconditionManager, DisplayServer,
 ResponseScorer, and DBManager with wrappers that log each call as a JSONL
-line to {root_folder}/pipeline_traces/{component}_trace.jsonl.
+line to {root_folder}/pipeline_traces/{eval_id}.jsonl.
 
 Zero functional changes to existing pipeline code — only 3-line conditional
 imports in the three entry-point __main__ blocks.
 
 Trace JSONL format (one JSON object per line, append-only):
-    {"step": "invoke_device", "component": "agent_tester", "eval_id": "q00065",
+    {"seq": 12, "round": "eval_set_1", "step": "invoke_device", "component": "agent_tester", "eval_id": "q00065",
      "timestamp": "2026-09-17T10:30:45.123", "duration_ms": 1234.5,
      "inputs": {"question_type": "online_device_volume_up"},
      "outputs": {"status": "invoked"}, "status": "success", "error": null}
@@ -24,16 +24,19 @@ import importlib
 import json
 import os
 import re
+import sys
 import time
 from datetime import datetime
 from typing import Any, Callable
 
 from agent_testers.device_managers import DEVICE_MANAGERS
+from utils import trace_verdicts
 
 # ── Module-level state ──────────────────────────────────────────────
 
 _trace_dir: str | None = None
-_current_eval_id: str | None = None
+_ctx = {"eval_id": "", "round": ""}   # set by the per-question entry wrappers, never guessed
+_seq = 0                              # per-process ordering of trace lines
 
 # ── Helpers ─────────────────────────────────────────────────────────
 
@@ -63,31 +66,18 @@ def _sanitize(data: Any) -> Any:
     return sanitized
 
 
-def _extract_eval_id(*args, **kwargs) -> str | None:
-    """Try to extract eval_id from method arguments."""
-    global _current_eval_id
-    for arg in args[1:]:  # skip self
-        if isinstance(arg, dict) and "eval_id" in arg:
-            return str(arg["eval_id"])
-        if isinstance(arg, str) and re.match(r"q?\d{5}", arg):
-            return arg
-    for v in kwargs.values():
-        if isinstance(v, dict) and "eval_id" in v:
-            return str(v["eval_id"])
-    return _current_eval_id
-
-
-def _write_trace(component, step, eval_id, inputs, outputs, status, error, duration_ms):
+def _write_trace(component, step, inputs, outputs, status, error, duration_ms):
     """Write a single trace line to the component's JSONL file."""
-    global _trace_dir, _current_eval_id
+    global _seq
     if not _trace_dir:
         return
-    if eval_id:
-        _current_eval_id = eval_id
+    _seq += 1
     entry = {
+        "seq": _seq,
         "step": step,
         "component": component,
-        "eval_id": eval_id or _current_eval_id or "",
+        "eval_id": _ctx["eval_id"],
+        "round": _ctx["round"],
         "timestamp": datetime.now().isoformat(),
         "duration_ms": round(duration_ms, 2),
         "inputs": _sanitize(inputs),
@@ -95,7 +85,12 @@ def _write_trace(component, step, eval_id, inputs, outputs, status, error, durat
         "status": status,
         "error": error,
     }
-    trace_file = os.path.join(_trace_dir, f"{component}_trace.jsonl")
+    try:
+        entry["verdict"] = trace_verdicts.evaluate(step, entry)  # None until checks are registered
+    except Exception:
+        entry["verdict"] = None
+    # One file per question; all three processes append to it (component is on each line).
+    trace_file = os.path.join(_trace_dir, f"{_ctx['eval_id'] or '_unattributed'}.jsonl")
     try:
         with open(trace_file, "a") as f:
             f.write(json.dumps(entry) + "\n")
@@ -103,7 +98,7 @@ def _write_trace(component, step, eval_id, inputs, outputs, status, error, durat
         pass  # Don't let tracing break the pipeline
 
 
-def _make_wrapper(original, component, step_name, extract_inputs=None, extract_outputs=None):
+def _make_wrapper(original, component, step_name, extract_inputs=None, extract_outputs=None, set_eval_id=None):
     """Create a tracing wrapper around an original method.
 
     Args:
@@ -112,12 +107,18 @@ def _make_wrapper(original, component, step_name, extract_inputs=None, extract_o
         step_name: Step name string, or callable(*args, **kwargs) -> str.
         extract_inputs: Optional callable(*args, **kwargs) -> dict.
         extract_outputs: Optional callable(result, *args, **kwargs) -> dict.
+        set_eval_id: Optional callable(*args, **kwargs) -> eval_id; marks this call as the
+            entry of a new question and sets the context for every following line.
     """
 
     @functools.wraps(original)
     def wrapper(*args, **kwargs):
         start = time.time()
-        eval_id = _extract_eval_id(*args, **kwargs)
+        if set_eval_id:
+            try:
+                _ctx["eval_id"] = str(set_eval_id(*args, **kwargs) or "")
+            except Exception:
+                pass
         step = step_name(*args, **kwargs) if callable(step_name) else step_name
         inputs = {}
         if extract_inputs:
@@ -143,15 +144,63 @@ def _make_wrapper(original, component, step_name, extract_inputs=None, extract_o
                     outputs = extract_outputs(result, *args, **kwargs) or {}
                 except Exception:
                     pass
-            _write_trace(component, step, eval_id, inputs, outputs, status, error, duration_ms)
+            _write_trace(component, step, inputs, outputs, status, error, duration_ms)
 
     return wrapper
 
 
 # ── Patch installers ────────────────────────────────────────────────
 
-def _patch_agent_tester_side(config: dict) -> None:
-    """Patch DeviceManager, ARAPManager, PreconditionManager, DisplayServer."""
+def _json_eval_id(raw) -> str:
+    """eval_id from a JSON string (execute/judge/coordinator receive their question as one)."""
+    return json.loads(raw).get("eval_id", "") if isinstance(raw, str) else ""
+
+
+def _patch_agent_tester_side(config: dict, agent_tester_cls=None) -> None:
+    """Patch AgentTester, DeviceManager, ARAPManager, PreconditionManager, DisplayServer."""
+    # --- AgentTester.execute: the per-question span ---
+    # Pass the class when running as __main__ (a re-import would patch a different copy).
+    if agent_tester_cls is None:
+        from agent_testers.agent_tester import AgentTester as agent_tester_cls
+    at_module = sys.modules[agent_tester_cls.__module__]
+
+    def _question_out(result, *a, **kw):
+        meta = result.get("metadata", {}) if isinstance(result, dict) else {}
+        conv = meta.get("conversation") or {}
+        return {
+            "response_path": meta.get("response_path"),
+            "skip": meta.get("skip", False),
+            "end_reason": conv.get("end_reason"),
+            "turns": len(conv.get("turns", [])),
+        }
+
+    agent_tester_cls.execute = _make_wrapper(
+        agent_tester_cls.execute, "agent_tester", "question",
+        extract_outputs=_question_out,
+        set_eval_id=lambda self, raw, *a, **kw: _json_eval_id(raw),
+    )
+
+    # --- Conversation loop (imported by name into agent_tester, so patch both) ---
+    from agent_testers import conversation
+
+    def _conv_out(result, *a, **kw):
+        return {
+            "end_reason": result.get("end_reason"),
+            "turns": [{k: t.get(k) for k in ("user", "t_agent_start", "t_agent_end")} for t in result.get("turns", [])],
+            "turn_files": result.get("turn_files", []),
+        } if isinstance(result, dict) else {}
+
+    wrapped = _make_wrapper(conversation.run_conversation, "agent_tester", "conversation", extract_outputs=_conv_out)
+    conversation.run_conversation = wrapped
+    if hasattr(at_module, "run_conversation"):
+        at_module.run_conversation = wrapped
+
+    conversation.transcribe_live = _make_wrapper(
+        conversation.transcribe_live, "agent_tester", "transcribe_live",
+        extract_inputs=lambda *a, **kw: {"path": a[0] if a else kw.get("path", "")},
+        extract_outputs=lambda result, *a, **kw: {"text": result},
+    )
+
     dm_type = config["device_manager_type"]
     dm_module_path = DEVICE_MANAGERS.get(dm_type)
     if not dm_module_path:
@@ -216,6 +265,25 @@ def _patch_agent_tester_side(config: dict) -> None:
             },
         )
 
+    if hasattr(DeviceManager, "set_connectivity"):
+        DeviceManager.set_connectivity = _make_wrapper(
+            DeviceManager.set_connectivity, "agent_tester", "set_connectivity",
+            extract_inputs=lambda *a, **kw: {"connectivity": a[1] if len(a) > 1 else kw.get("connectivity", "")},
+        )
+
+    if hasattr(DeviceManager, "terminate"):
+        DeviceManager.terminate = _make_wrapper(DeviceManager.terminate, "agent_tester", "terminate")
+
+    if hasattr(DeviceManager, "_collect_state"):
+        def _collect_out(result, self, q_info, *a, **kw):
+            meta = q_info.get("metadata", {})
+            res = meta.get("device_info_state") or meta.get("app_state") or {}
+            return {k: res.get(k) for k in ("method", "verified", "rating", "analysis")} if isinstance(res, dict) else {}
+
+        DeviceManager._collect_state = _make_wrapper(
+            DeviceManager._collect_state, "agent_tester", "state_collect", extract_outputs=_collect_out,
+        )
+
     if hasattr(DeviceManager, "invoke"):
         orig = DeviceManager.invoke
         DeviceManager.invoke = _make_wrapper(
@@ -236,6 +304,13 @@ def _patch_agent_tester_side(config: dict) -> None:
     # --- ARAPManager methods ---
 
     from agent_testers.arap_manager import ARAPManager
+
+    for method_name in ("start_arap", "stop_arap"):
+        if hasattr(ARAPManager, method_name):
+            setattr(ARAPManager, method_name, _make_wrapper(
+                getattr(ARAPManager, method_name), "agent_tester", method_name,
+                extract_inputs=lambda self, *a, **kw: {"device": getattr(self, "device", "")},
+            ))
 
     if hasattr(ARAPManager, "play_audio"):
         orig = ARAPManager.play_audio
@@ -338,6 +413,7 @@ def _patch_judge_worker_side(config: dict) -> None:
         orig = ResponseScorer.get_judge_score
         ResponseScorer.get_judge_score = _make_wrapper(
             orig, "judge_worker", "judge_score",
+            set_eval_id=lambda self, raw, *a, **kw: _json_eval_id(raw),
             extract_outputs=lambda result, *a, **kw: {
                 "final_rating": result[1].get("rating", 0) if isinstance(result, tuple) and isinstance(result[1], dict) else 0,
                 "eval_id": result[1].get("eval_id", "") if isinstance(result, tuple) and isinstance(result[1], dict) else "",
@@ -353,6 +429,7 @@ def _patch_coordinator_side(config: dict) -> None:
         orig = DBManager.add_task
         DBManager.add_task = _make_wrapper(
             orig, "coordinator", "dispatch_question",
+            set_eval_id=lambda self, raw, *a, **kw: _json_eval_id(raw),
             extract_inputs=lambda *a, **kw: {
                 "payload": a[1][:200] if len(a) > 1 and isinstance(a[1], str) else "",
             },
@@ -363,6 +440,7 @@ def _patch_coordinator_side(config: dict) -> None:
         orig = DBManager.update_task
         DBManager.update_task = _make_wrapper(
             orig, "coordinator", "task_update",
+            set_eval_id=lambda self, eval_id, *a, **kw: eval_id,
             extract_inputs=lambda *a, **kw: {
                 "eval_id": a[1] if len(a) > 1 else "",
                 "status": a[2] if len(a) > 2 else "",
@@ -372,7 +450,7 @@ def _patch_coordinator_side(config: dict) -> None:
 
 # ── Public API ──────────────────────────────────────────────────────
 
-def install_tracing(config_path: str) -> None:
+def install_tracing(config_path: str, agent_tester_cls=None) -> None:
     """Install tracing wrappers on pipeline classes.
 
     Called from each process's __main__ block when PIPELINE_TRACE env var is set.
@@ -381,6 +459,7 @@ def install_tracing(config_path: str) -> None:
 
     Args:
         config_path: Path to the evaluation config JSON.
+        agent_tester_cls: AgentTester class (agent_tester process only; see _patch_agent_tester_side).
     """
     global _trace_dir
 
@@ -389,11 +468,12 @@ def install_tracing(config_path: str) -> None:
 
     root_folder = config["paths"]["root_folder"]
     _trace_dir = os.path.join(root_folder, "pipeline_traces")
+    _ctx["round"] = os.path.basename(os.path.normpath(root_folder))  # eval_set_N
     os.makedirs(_trace_dir, exist_ok=True)
 
     # Patch all sides — unused patches in a given process are harmless
     try:
-        _patch_agent_tester_side(config)
+        _patch_agent_tester_side(config, agent_tester_cls)
     except Exception as e:
         print(f"[trace_injection] agent_tester patch failed: {e}")
 
