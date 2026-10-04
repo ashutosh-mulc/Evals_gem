@@ -7,38 +7,38 @@ FEATURE = "clock_stopwatch"
 PACKAGE_NAME = "com.sec.android.app.clockpackage"
 ACTIVITY_NAME = "com.sec.android.app.clockpackage/com.sec.android.app.clockpackage.ClockPackage"
 
-# Stopwatch tab is tab 2 of 4 at the bottom of the Clock app.
-# Coordinates are screen ratios (floats 0-1) scaled by device resolution at runtime.
-STOPWATCH_TAB_X = 0.578
-STOPWATCH_TAB_Y = 0.900
+# The bottom tab bar (Alarm, World clock, Stopwatch, Timer) has no resource-ids, but each
+# tab has an exact content-desc, so tap_content_desc finds it on any screen size.
+STOPWATCH_TAB_DESC = "Stopwatch"
 
 ACTIONS = {
     "launch": [
-        ['screenshot']
+        # The agent already left the app open; just capture whatever is on screen.
+        ['screenshot'],
     ],
     "start": [
-        ['open_activity', ACTIVITY_NAME],
-        ['click', STOPWATCH_TAB_X, STOPWATCH_TAB_Y],
-        ['screenshot'],
-        ['close_app']
+        ['open_activity', ACTIVITY_NAME],              # open Clock (it may open on any tab)
+        ['tap_content_desc', STOPWATCH_TAB_DESC],      # switch to the Stopwatch tab
+        ['screenshot'],                                # capture the running stopwatch
+        ['close_app'],                                 # force-stop so the next action starts from a cold app
     ],
     "lap": [
-        ['open_activity', ACTIVITY_NAME],
-        ['click', STOPWATCH_TAB_X, STOPWATCH_TAB_Y],
-        ['screenshot'],
-        ['close_app']
+        ['open_activity', ACTIVITY_NAME],              # open Clock (it may open on any tab)
+        ['tap_content_desc', STOPWATCH_TAB_DESC],      # switch to the Stopwatch tab
+        ['screenshot'],                                # capture the stopwatch with its lap list
+        ['close_app'],                                 # force-stop so the next action starts from a cold app
     ],
     "stop": [
-        ['open_activity', ACTIVITY_NAME],
-        ['click', STOPWATCH_TAB_X, STOPWATCH_TAB_Y],
-        ['screenshot'],
-        ['close_app']
+        ['open_activity', ACTIVITY_NAME],              # open Clock (it may open on any tab)
+        ['tap_content_desc', STOPWATCH_TAB_DESC],      # switch to the Stopwatch tab
+        ['screenshot'],                                # capture the stopped stopwatch
+        ['close_app'],                                 # force-stop so the next action starts from a cold app
     ],
     "reset": [
-        ['open_activity', ACTIVITY_NAME],
-        ['click', STOPWATCH_TAB_X, STOPWATCH_TAB_Y],
-        ['screenshot'],
-        ['close_app']
+        ['open_activity', ACTIVITY_NAME],              # open Clock (it may open on any tab)
+        ['tap_content_desc', STOPWATCH_TAB_DESC],      # switch to the Stopwatch tab
+        ['screenshot'],                                # capture the reset stopwatch (00:00)
+        ['close_app'],                                 # force-stop so the next action starts from a cold app
     ],
 }
 

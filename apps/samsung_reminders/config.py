@@ -10,31 +10,43 @@ OPEN_TRASH_ACTIVITY_INTENT="com.samsung.android.app.reminder.action.VIEW_TRASH"
 
 ACTIONS = {
     "launch": [
-        ['screenshot']
+        # The agent already left the app open; just capture whatever is on screen.
+        ['screenshot'],
     ],
     "create": [
-        ['open_activity', ACTIVITY_NAME], ['click', 400, 1200], ['screenshot'], ['close_app']
+        ['open_activity', ACTIVITY_NAME],  # open Reminder; the list shows each reminder's title and date/time
+        ['screenshot'],                    # capture the list (no positional tap needed)
+        ['close_app'],                     # force-stop so the next action starts from a cold app
     ],
     "modify": [
-        # e.g. "mark today's medication reminder as complete" — after the agent
-        # acts, navigate into the "Completed" category tile so the screenshot
-        # shows the reminder in its new (completed) state for VLM judge context.
-        # No unique resource-id exists for this tile (all 6 category tiles share
-        # resource-id "category_name"); content-desc is the only distinguishing
-        # signal, and it includes a variable item count (e.g. "Completed, 1 item"),
-        # hence prefix_match=True.
-        ['open_activity', ACTIVITY_NAME], ['tap_content_desc', 'Completed', True], ['screenshot'], ['close_app']
+        # e.g. "mark today's medication reminder as complete": open the "Completed"
+        # category so the screenshot shows the reminder in its new state.
+        ['open_activity', ACTIVITY_NAME],  # open Reminder (main list with the 6 category tiles)
+        # All 6 tiles share resource-id "category_name" and the tile has no content-desc
+        # on SM-M346B, so match its visible label text.
+        ['tap_text', 'Completed'],         # open the Completed list
+        ['screenshot'],                    # capture the Completed list (newest completion on top)
+        ['close_app'],                     # force-stop so the next action starts from a cold app
     ],
     "delete": [
-        # After the agent deletes a reminder, open the Trash bin via intent
-        # so the screenshot shows the deleted reminder for VLM judge context.
-        ['open_activity', ACTIVITY_NAME], ['open_intent_action', OPEN_TRASH_ACTIVITY_INTENT], ['screenshot'], ['close_app']
+        # After the agent deletes a reminder, show the Recycle bin.
+        # The VIEW_TRASH intent is only honoured on a cold start (verified on SM-M346B: it is
+        # ignored while the app is in the foreground or alive in the background), so
+        # force-stop first instead of open_activity.
+        ['close_app'],                                           # force-stop so the intent cold-starts the app
+        ['open_intent_action', OPEN_TRASH_ACTIVITY_INTENT],      # open the Recycle bin directly
+        ['screenshot'],                                          # capture the Recycle bin
+        ['close_app'],                                           # force-stop so the next action starts from a cold app
     ],
     "read": [
-        ['open_activity', ACTIVITY_NAME], ['screenshot'], ['close_app']
+        ['open_activity', ACTIVITY_NAME],  # open Reminder; the list shows the reminders to read
+        ['screenshot'],                    # capture the list
+        ['close_app'],                     # force-stop so the next action starts from a cold app
     ],
     "noread": [
-        ['open_activity', ACTIVITY_NAME], ['screenshot'], ['close_app']
+        ['open_activity', ACTIVITY_NAME],  # open Reminder; the list shows which reminders exist (or don't)
+        ['screenshot'],                    # capture the list
+        ['close_app'],                     # force-stop so the next action starts from a cold app
     ],
 }
 
